@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 
 export default function Landing() {
   const router = useRouter();
+  const handleSetup = () => {
+    router.push("/setup");
+  }
   return (
     <main className="p-8">
       <div className="max-w-4xl mx-auto">
@@ -14,6 +17,9 @@ export default function Landing() {
           <p>This is your authenticated landing page.</p>
         </div>
       </div>
+      <button className = "mx-auto" onClick = {handleSetup}>
+        Start interviewing!
+      </button>
     </main>
   );
 }
