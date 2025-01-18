@@ -103,8 +103,8 @@ const Interview = () => {
   };
 
   return (
-    <div className="gradient-background min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
-      <div className="max-w-4xl mx-auto bg-opacity-50 bg-white rounded-lg shadow-xl overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl overflow-hidden">
         <div className="p-6">
           <h1 className="text-2xl font-bold text-center mb-6">Virtual Interview</h1>
 
