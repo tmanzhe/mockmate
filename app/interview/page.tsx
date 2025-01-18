@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Camera, Mic, MicOff, Video, VideoOff, Pause, Play } from "lucide-react";
+import { Camera, Mic, MicOff, Video, VideoOff, Pause, Play, RefreshCcw } from "lucide-react";
 
-interface Message {
-    id: number;
-    sender: string;
-    text: string;
-    timestamp: string;
-  }
+type Message = {
+  id: number;
+  text: string;
+  sender: string;
+  timestamp: string;
+};
 
 const Interview = () => {
   const [mediaState, setMediaState] = useState({
@@ -16,7 +16,7 @@ const Interview = () => {
     isMicrophoneOn: true,
     isCameraOn: true
   });
-  
+
   const [messages, setMessages] = useState<Message[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -24,9 +24,8 @@ const Interview = () => {
   useEffect(() => {
     initializeMedia();
     return () => {
-      // Cleanup media streams when component unmounts
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track: { stop: () => any; }) => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
@@ -34,10 +33,14 @@ const Interview = () => {
   const initializeMedia = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+        video: { 
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
         audio: true
       });
-      
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -47,14 +50,14 @@ const Interview = () => {
     }
   };
 
-  const toggleMedia = (type: string) => {
+  const toggleMedia = (type: "audio" | "video") => {
     if (!streamRef.current) return;
 
     const tracks = type === 'audio' 
       ? streamRef.current.getAudioTracks()
       : streamRef.current.getVideoTracks();
 
-    tracks.forEach((track: { enabled: boolean; }) => {
+    tracks.forEach(track => {
       track.enabled = !track.enabled;
     });
 
@@ -71,14 +74,9 @@ const Interview = () => {
     }));
   };
 
-  const sendMessage = () => {
-    const newMessage = {
-      id: Date.now(),
-      text: "New message",
-      sender: "User",
-      timestamp: new Date().toLocaleTimeString()
-    };
-    setMessages(prev => [...prev, newMessage]);
+  const switchCamera = () => {
+    console.log("Switch camera button clicked.");
+    // Logic for switching the camera (if applicable) can go here.
   };
 
   return (
@@ -86,7 +84,7 @@ const Interview = () => {
       <div className="max-w-4xl mx-auto bg-white bg-opacity-50 rounded-lg shadow-xl overflow-hidden">
         <div className="p-6">
           <h1 className="text-2xl font-bold text-center mb-6">Virtual Interview</h1>
-          
+
           <div className="grid grid-cols-2 gap-4 mb-6">
             {/* Interviewer View */}
             <div className="relative aspect-video bg-slate-800 rounded-lg flex items-center justify-center">
@@ -96,15 +94,15 @@ const Interview = () => {
               </div>
             </div>
 
-            {/* User's Video */}
-            <div className="relative aspect-video bg-slate-800 rounded-lg overflow-hidden
-             ${mediaState.isMicrophoneOn ? 'ring-4 ring-blue-500' : ''}">
+            {/* User's Video - Style updated to remove mirror effect */}
+            <div className="relative aspect-video bg-slate-800 rounded-lg overflow-hidden">
               <video
                 ref={videoRef}
                 autoPlay
                 muted
                 playsInline
-                className="w-full h-full object-cover transform scale-x-[-1]"
+                className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
               />
               <div className="absolute top-2 right-2 bg-slate-900/80 px-2 py-1 rounded text-xs text-white">
                 You
@@ -115,6 +113,13 @@ const Interview = () => {
           {/* Controls */}
           <div className="flex justify-center gap-4 mb-6">
             <button
+              onClick={switchCamera}
+              className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
+            >
+              <RefreshCcw size={20} />
+            </button>
+
+            <button
               onClick={() => toggleMedia('audio')}
               className={`p-3 rounded-full ${
                 mediaState.isMicrophoneOn ? 'bg-slate-700 hover:bg-slate-600' : 'bg-red-600 hover:bg-red-500'
@@ -122,7 +127,7 @@ const Interview = () => {
             >
               {mediaState.isMicrophoneOn ? <Mic size={20} /> : <MicOff size={20} />}
             </button>
-            
+
             <button
               onClick={() => toggleMedia('video')}
               className={`p-3 rounded-full ${
@@ -145,8 +150,8 @@ const Interview = () => {
           {/* Chat Section */}
           <div className="bg-slate-50 rounded-lg p-4">
             <h2 className="text-lg font-semibold mb-4">Chat</h2>
-            <div className="h-48 overflow-y-auto space-y-2 mb-4">
-              {messages.map(message => (
+            <div className="h-48 overflow-y-auto space-y-2">
+              {messages.map((message: Message) => (
                 <div key={message.id} className="p-2 bg-white rounded shadow">
                   <div className="text-sm font-medium">{message.sender}</div>
                   <div>{message.text}</div>
@@ -154,12 +159,6 @@ const Interview = () => {
                 </div>
               ))}
             </div>
-            <button
-              onClick={sendMessage}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded"
-            >
-              Send Message
-            </button>
           </div>
         </div>
       </div>
