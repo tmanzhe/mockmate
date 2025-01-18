@@ -43,4 +43,46 @@
       background-position: 0% 50%;
     }
   }
-  
+  /* global.css */
+:root {
+    --almond: #F1DAC4;
+    --rose-quartz: #A69CAC;
+    --ultra-violet: #474973;
+    --oxford-blue: #161B33;
+    --rich-black: #0D0C1D;
+  }
+
+  body {
+    background-color: var(--rose-quartz);
+  }
+
+  h1 {
+    color: var(--oxford-blue);
+  }
+
+  .gradient-background {
+    background: linear-gradient(
+      90deg,
+      #F1DAC4, /* Almond */
+      #A69CAC, /* Rose Quartz */
+      #474973, /* Ultra Violet */
+      #161B33, /* Oxford Blue */
+      #0D0C1D  /* Rich Black */
+    );
+    background-size: 300% 300%;
+    animation: gradientAnimation 15s ease infinite;
+  }
+
+  @keyframes gradientAnimation {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+ 

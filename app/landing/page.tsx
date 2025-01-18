@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from 'next/navigation';
 
 export default function Landing() {
   const [query, setQuery] = useState(""); // State to handle user input
+  const router = useRouter();
+  const handleSetup = () => {
+    router.push("/setup");
+  }
 
   const handleSubmit = () => {
     if (query.trim() === "") {
       alert("Please enter a topic or query.");
       return;
     }
+    router.push("/setup");
     console.log("User query:", query);
   };
 
