@@ -19,7 +19,7 @@ export default function Page() {
       if (res.ok) {
         const data = await res.json();
         document.cookie = `auth-token=${data.token}; path=/`;
-        router.push('/dashboard');
+        router.push('/landing');
       } else {
         const data = await res.json();
         alert(data.error || 'Login failed.');

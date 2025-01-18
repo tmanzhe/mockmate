@@ -1,4 +1,3 @@
-// app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -35,7 +34,20 @@ export async function POST(request: Request) {
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
-    return NextResponse.json({ token }, { status: 200 });
+    
+    // Set the token in a cookie
+    const response = NextResponse.json(
+      { message: 'Login successful' },
+      { status: 200 }
+    );
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 3600 // 1 hour
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
