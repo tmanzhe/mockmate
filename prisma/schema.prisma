@@ -1,71 +1,17 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model User {
-  id        String    @id
-  name      String
-  email     String    @unique
-  password  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
-  Session   Session[]
+  id    Int    @id @default(autoincrement())
+  name  String
+  email String @unique
+  password String
 }
 
-model Feedback {
-  id        String   @id
-  sessionId String
-  thoughts  String
-  createdAt DateTime @default(now())
-  Session   Session  @relation(fields: [sessionId], references: [id])
-
-  @@index([sessionId])
-}
-
-model Question {
-  id        String     @id
-  sessionId String
-  text      String
-  type      String
-  createdAt DateTime   @default(now())
-  Session   Session    @relation(fields: [sessionId], references: [id])
-  Response  Response[]
-
-  @@index([sessionId])
-}
-
-model Response {
-  id               String   @id
-  sessionId        String
-  questionId       String
-  userAnswer       String
-  mockmateThoughts String?
-  audioUrl         String?
-  videoUrl         String?
-  createdAt        DateTime @default(now())
-  Question         Question @relation(fields: [questionId], references: [id])
-  Session          Session  @relation(fields: [sessionId], references: [id])
-
-  @@index([questionId])
-  @@index([sessionId])
-}
-
-model Session {
-  id        String     @id
-  userId    String
-  topic     String
-  style     String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @default(now())
-  Feedback  Feedback[]
-  Question  Question[]
-  Response  Response[]
-  User      User       @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-}
+ 
