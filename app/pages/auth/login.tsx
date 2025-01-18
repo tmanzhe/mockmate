@@ -1,3 +1,4 @@
+import router from 'next/router';
 import AuthForm from '../../components/AuthForm';
 
 const Login = () => {
@@ -9,27 +10,23 @@ const Login = () => {
             body: JSON.stringify({ email, password }),
           });
       
-          // Check if the response is OK
+          let data;
+          try {
+            data = await res.json();
+          } catch (e) {
+            console.error('Failed to parse JSON response:', e);
+            throw new Error('Invalid server response');
+          }
+      
           if (res.ok) {
-            const contentType = res.headers.get('Content-Type');
-            if (contentType && contentType.includes('application/json')) {
-              const data = await res.json();
-              document.cookie = `auth-token=${data.token}; path=/`;
-              window.location.href = '/dashboard';
-            } else {
-              // If the response is not JSON, handle accordingly
-              alert('Server did not return JSON.');
-            }
+            document.cookie = `auth-token=${data.token}; path=/`;
+            router.push('/dashboard');
           } else {
-            // If the server returned an error (non-200 status code)
-            const errorData = await res.json().catch(() => {
-              // In case the response is not JSON
-              return { error: 'Login failed due to an unknown error.' };
-            });
-            alert(errorData.error || 'Login failed.');
+            alert(data.error || 'Login failed.');
           }
         } catch (error) {
-          alert('Something went wrong.');
+          console.error('Login error:', error);
+          alert('Something went wrong. Please try again.');
         }
       };
       
