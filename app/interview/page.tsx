@@ -18,6 +18,7 @@ const Interview = () => {
   });
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -29,6 +30,32 @@ const Interview = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+
+    if (streamRef.current) {
+      const source = audioContext.createMediaStreamSource(streamRef.current);
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const detectSpeech = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+        setIsSpeaking(avg > 10); // Adjust threshold as needed
+        requestAnimationFrame(detectSpeech);
+      };
+
+      detectSpeech();
+    }
+
+    return () => {
+      audioContext.close();
+    };
+  }, [streamRef.current]);
 
   const initializeMedia = async () => {
     try {
@@ -80,8 +107,8 @@ const Interview = () => {
   };
 
   return (
-    <div className="gradient-background min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
-      <div className="max-w-4xl mx-auto bg-white bg-opacity-50 rounded-lg shadow-xl overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl overflow-hidden">
         <div className="p-6">
           <h1 className="text-2xl font-bold text-center mb-6">Virtual Interview</h1>
 
@@ -95,7 +122,7 @@ const Interview = () => {
             </div>
 
             {/* User's Video - Style updated to remove mirror effect */}
-            <div className="relative aspect-video bg-slate-800 rounded-lg overflow-hidden">
+            <div className={`relative aspect-video bg-slate-800 rounded-lg overflow-hidden ${isSpeaking ? 'ring-4 ring-blue-500' : ''}`}>
               <video
                 ref={videoRef}
                 autoPlay
