@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Camera, Mic, MicOff, Video, VideoOff, Pause, Play, RefreshCcw } from "lucide-react";
-import STT from '../components/STT';
 
 type Message = {
   id: number;
@@ -102,6 +101,11 @@ const Interview = () => {
     }));
   };
 
+  const switchCamera = () => {
+    console.log("Switch camera button clicked.");
+    // Logic for switching the camera (if applicable) can go here.
+  };
+
   return (
     <div className="gradient-background min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
       <div className="max-w-4xl mx-auto bg-opacity-50 bg-white rounded-lg shadow-xl overflow-hidden">
@@ -136,7 +140,7 @@ const Interview = () => {
           {/* Controls */}
           <div className="flex justify-center gap-4 mb-6">
             <button
-              // onClick={}
+              onClick={switchCamera}
               className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
             >
               <RefreshCcw size={20} />
@@ -183,10 +187,6 @@ const Interview = () => {
               ))}
             </div>
           </div>
-          {/* Speech-to-Text Component */}
-          <STT
-            isMicrophoneOn={mediaState.isMicrophoneOn}
-          />
         </div>
       </div>
     </div>
