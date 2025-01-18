@@ -5,30 +5,28 @@ import * as jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export function middleware(request: NextRequest) {
-  console.log('Middleware running for path:', request.nextUrl.pathname);
-  
+  // Get the pathname of the request (e.g. /, /landing)
   const path = request.nextUrl.pathname;
+  
+  // Define authentication routes
   const isAuthRoute = path.startsWith('/auth');
   const isPublicRoute = path === '/' || isAuthRoute;
   
   const token = request.cookies.get('token')?.value;
-  console.log('Token present:', !!token);
 
   // Validate token if it exists
   const isValidToken = token ? validateToken(token) : false;
-  console.log('Token valid:', isValidToken);
 
+  // Redirect authenticated users from public routes to landing
   if (isPublicRoute && isValidToken) {
-    console.log('Redirecting authenticated user to landing page');
     return NextResponse.redirect(new URL('/landing', request.url));
   }
 
+  // Redirect unauthenticated users to login
   if (!isPublicRoute && !isValidToken) {
-    console.log('Redirecting unauthenticated user to login');
     return NextResponse.redirect(new URL('/auth/login', request.url));
   }
 
-  console.log('Proceeding with request');
   return NextResponse.next();
 }
 
@@ -36,12 +34,12 @@ function validateToken(token: string): boolean {
   try {
     jwt.verify(token, JWT_SECRET);
     return true;
-  } catch (error) {
-    console.error('Token validation error:', error);
+  } catch {
     return false;
   }
 }
 
+// Updated matcher configuration
 export const config = {
   matcher: [
     /*
