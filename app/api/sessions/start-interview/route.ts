@@ -7,45 +7,26 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
 export async function POST(request: Request) {
   try {
-    const { sessionId, userQuery, userId } = await request.json();
-    const headerSessionId = request.headers.get("X-Session-ID");
-    const headerUserId = request.headers.get("X-User-ID");
+    const { sessionId, userQuery } = await request.json();
 
-    // Validate request body and headers
-    if (!sessionId || !userQuery || !userId) {
-      console.error("Missing required data:", { sessionId, userQuery, userId });
+    // Validate request body
+    if (!sessionId || !userQuery) {
+      console.error("Missing sessionId or userQuery:", { sessionId, userQuery });
       return NextResponse.json(
-        { error: "Missing required data." },
+        { error: "Missing sessionId or userQuery." },
         { status: 400 }
-      );
-    }
-
-    // Verify session matches headers
-    if (sessionId !== headerSessionId || userId !== headerUserId) {
-      console.error("Session mismatch:", { 
-        bodySession: sessionId, 
-        headerSession: headerSessionId,
-        bodyUser: userId,
-        headerUser: headerUserId
-      });
-      return NextResponse.json(
-        { error: "Invalid session." },
-        { status: 401 }
       );
     }
 
     // Fetch session from database
     const session = await prisma.session.findUnique({
-      where: { 
-        id: sessionId,
-        userId: userId // Add userId to ensure session belongs to user
-      },
+      where: { id: sessionId },
       include: { questions: true },
     });
 
     if (!session) {
-      console.error("Session not found or unauthorized:", sessionId);
-      return NextResponse.json({ error: "Session not found or unauthorized." }, { status: 404 });
+      console.error("Session not found for sessionId:", sessionId);
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
     }
 
     // Generate prompt for OpenAI
