@@ -1,25 +1,29 @@
-"use client"; // Ensure this is client-side rendered
+"use client";
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Question = {
-  text: string; // Define the type for a question object
+  id: string;
+  text: string;
 };
 
 const StartInterview = () => {
   const searchParams = useSearchParams();
-  const sessionId = searchParams?.get("sessionId") ?? null; // Extract sessionId from URL query parameters
+  const sessionId = searchParams?.get("sessionId");
 
-  const [introMessage, setIntroMessage] = useState(""); // State for intro message
-  const [questions, setQuestions] = useState<Question[]>([]); // Explicitly type the state
-  const [error, setError] = useState<string | null>(null); // State for error handling
+  const [introMessage, setIntroMessage] = useState("");
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!sessionId) return; // Guard clause for undefined sessionId
+    if (!sessionId) {
+      setError("Session ID is missing or invalid.");
+      return;
+    }
 
-    console.log("Fetching interview data with sessionId:", sessionId);
-
+    setLoading(true);
     fetch("/api/sessions/start-interview", {
       method: "POST",
       body: JSON.stringify({ sessionId }),
@@ -28,43 +32,47 @@ const StartInterview = () => {
       },
     })
       .then((response) => {
-        if (!response.ok) {
-          console.error("Failed to fetch data:", response);
-          throw new Error("Failed to fetch data");
-        }
+        if (!response.ok) throw new Error("Failed to fetch data");
         return response.json();
       })
       .then((data) => {
         if (data.error) {
           setError(data.error);
         } else {
-          console.log("Received data:", data);
+          setIntroMessage(data.introMessage);
+          setQuestions(data.questions);
           setError(null);
-          setIntroMessage(data.introMessage); // Set the introductory message
-          setQuestions(data.questions); // Set the questions
         }
       })
-      .catch((error) => {
-        setError(`Error fetching interview data: ${error.message}`);
-      });
+      .catch((error) => setError(`Error fetching data: ${error.message}`))
+      .finally(() => setLoading(false));
   }, [sessionId]);
+
+  if (error) {
+    return (
+      <div>
+        <h1>Start Interview</h1>
+        <p style={{ color: "red" }}>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <h1>Start Interview</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <div>
-        <h2>{introMessage || "Loading interview data..."}</h2> {/* Display the intro message */}
-        <ul>
-          {questions.length > 0 ? (
-            questions.map((question, index) => (
-              <li key={index}>{question.text}</li> // Display each question
-            ))
-          ) : (
-            <p>No questions available.</p>
-          )}
-        </ul>
-      </div>
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <div>
+          <h2>{introMessage || "Welcome!"}</h2>
+          <ul>
+            {questions.map((question) => (
+              <li key={question.id}>{question.text.replace(/^-\s*/, "")}</li>
+            ))}
+          </ul>
+          {questions.length === 0 && !loading && <p>No questions available at this time.</p>}
+        </div>
+      )}
     </div>
   );
 };
