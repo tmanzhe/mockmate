@@ -130,7 +130,7 @@ const Interview: React.FC = () => {
 
     if (
       lastMessage &&
-      lastMessage.sender === "AI Interviewer" &&
+      lastMessage.sender === "MockMate" &&
       lastMessage.id !== lastSpokenMessageIdRef.current
     ) {
       speakText(lastMessage.text);
@@ -175,7 +175,7 @@ const Interview: React.FC = () => {
             {
               id: 0,
               text: data.introMessage,
-              sender: "AI Interviewer",
+              sender: "MockMate",
             },
           ]);
         }
@@ -417,7 +417,7 @@ const Interview: React.FC = () => {
             {
               id: prev.length + 2,
               text: data.botReply,
-              sender: "AI Interviewer",
+              sender: "MockMate",
             },
           ]);
 
@@ -427,7 +427,7 @@ const Interview: React.FC = () => {
               {
                 id: prev.length + 3,
                 text: interviewState.questions[interviewState.currentQuestionIndex].text,
-                sender: "AI Interviewer",
+                sender: "MockMate",
               },
             ]);
 
@@ -446,7 +446,7 @@ const Interview: React.FC = () => {
               {
                 id: prev.length + 3,
                 text: "Thank you for completing the interview!",
-                sender: "AI Interviewer",
+                sender: "MockMate",
               },
             ]);
           }
