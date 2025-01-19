@@ -18,19 +18,21 @@ model User {
 }
 
 model Session {
-  id           String     @id @default(uuid())
-  userId       String
-  topic        String
-  style        String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  feedbackLogs Feedback[]
-  questions    Question[]
-  responses    Response[]
-  user         User       @relation(fields: [userId], references: [id])
+  id                  String   @id @default(uuid())
+  userId              String
+  topic               String
+  style               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  currentQuestionIndex Int     @default(0) // Add this field to track the question index
+  feedbackLogs        Feedback[]
+  questions           Question[]
+  responses           Response[]
+  user                User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
+
 
 model Question {
   id        String     @id @default(uuid())
