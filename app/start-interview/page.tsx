@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Camera, Mic, MicOff, Video, VideoOff, Pause, Play, RefreshCcw } from "lucide-react";
+import { Camera, Mic, MicOff, Video, VideoOff, Pause, Play, RefreshCcw, FileText } from "lucide-react";
 
 // Types
 interface MediaState {
@@ -15,6 +15,7 @@ interface Message {
   id: number;
   text: string;
   sender: string;
+  isLive?: boolean;
 }
 
 interface Question {
@@ -56,6 +57,7 @@ const Interview: React.FC = () => {
   const [interimTranscript, setInterimTranscript] = useState<string>("");
   const [isListening, setIsListening] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
 
   // Refs
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -133,8 +135,10 @@ const Interview: React.FC = () => {
           for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
               setTranscript(prev => prev + event.results[i][0].transcript);
+              setHasPendingResults(false);
             } else {
               interim += event.results[i][0].transcript;
+              setHasPendingResults(true);
             }
           }
           setInterimTranscript(interim);
@@ -195,6 +199,23 @@ const Interview: React.FC = () => {
       setIsSpeaking(false);
     };
   }, [mediaState.isMicrophoneOn]);
+
+  // Create a computed messages array that includes the live transcript
+    const allMessages = React.useMemo(() => {
+      const messagesList = [...messages];
+      
+      // Only add live transcript if there's something to show
+      if (transcript || interimTranscript) {
+        messagesList.push({
+          id: -1, // Special ID for live transcript
+          text: transcript + interimTranscript,
+          sender: "You",
+          isLive: true
+        });
+      }
+      
+      return messagesList;
+    }, [messages, transcript, interimTranscript]);
 
   const initializeMedia = async () => {
     try {
@@ -270,15 +291,24 @@ const Interview: React.FC = () => {
   };
 
   const resetTranscript = () => {
+    if (hasPendingResults) {
+      console.log("Waiting for interim results to finalize before resetting.");
+      return;
+    }
     if (transcript.trim()) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: prev.length + 1,
-          text: transcript,
-          sender: "You"
-        }
-      ]);
+      // Check if the last non-live message is the same as the current transcript
+      const lastMessage = messages[messages.length - 1];
+      if (!lastMessage || lastMessage.text !== transcript) {
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            id: prevMessages.length + 1,
+            text: transcript,
+            sender: "You",
+            isLive: false,
+          },
+        ]);
+      }
 
       // Add next question from AI after user response
       if (interviewState.currentQuestionIndex < interviewState.questions.length) {
@@ -307,6 +337,10 @@ const Interview: React.FC = () => {
       isRecording: !prev.isRecording
     }));
   };
+
+  const switchPerspective = () => {
+    console.log("Perspective switch");
+  }
 
   return (
     <div className="gradient-background min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
@@ -345,6 +379,13 @@ const Interview: React.FC = () => {
 
               <div className="flex justify-center gap-4 mb-6">
                 <button
+                  onClick={switchPerspective}
+                  className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
+                >
+                  <RefreshCcw size={20} />
+                </button>
+
+                <button
                   onClick={() => toggleMedia('audio')}
                   className={`p-3 rounded-full ${
                     mediaState.isMicrophoneOn ? 'bg-slate-700 hover:bg-slate-600' : 'bg-red-600 hover:bg-red-500'
@@ -370,32 +411,36 @@ const Interview: React.FC = () => {
                 >
                   {mediaState.isRecording ? <Pause size={20} /> : <Play size={20} />}
                 </button>
+
+                <button
+                  onClick={resetTranscript}
+                  className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
+                >
+                    <FileText size={20} />
+                </button>
               </div>
 
               <div className="bg-slate-50 rounded-lg p-4">
-                <h2 className="text-lg font-semibold mb-4">Interview Progress</h2>
-                <div className="h-48 overflow-y-auto space-y-2">
-                  {messages.map((message) => (
-                    <div key={message.id} className="p-2 bg-white rounded shadow">
-                      <div className="text-sm font-medium">{message.sender}</div>
-                      <div>{message.text}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-slate-50 rounded-lg p-4 mt-6">
-                <h2 className="text-lg font-semibold mb-4">Live Transcript</h2>
-                <div className="h-40 overflow-y-auto border rounded p-2 bg-white">
-                  {transcript + interimTranscript}
-                </div>
-                <button
-                  onClick={resetTranscript}
-                  className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded"
-                >
-                  Submit Answer
-                </button>
-              </div>
+      <h2 className="text-lg font-semibold mb-4">Chat</h2>
+      <div className="h-48 overflow-y-auto space-y-2">
+        {allMessages.map((message: Message) => (
+          <div 
+            key={message.id} 
+            className={`p-2 bg-white rounded shadow ${
+              message.isLive ? 'border-l-4 border-blue-500' : ''
+            }`}
+          >
+            <div className="text-sm font-medium flex justify-between">
+              <span>{message.sender}</span>
+              {message.isLive && (
+                <span className="text-blue-500 text-xs">Live</span>
+              )}
+            </div>
+            <div>{message.text}</div>
+          </div>
+        ))}
+      </div>
+    </div>
             </>
           )}
         </div>
