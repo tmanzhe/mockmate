@@ -2,7 +2,7 @@
 
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import React, { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Camera, Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
 
 // Types
@@ -45,6 +45,7 @@ const Interview: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chatBoxRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
 
   // Speech synthesis configuration
   const speechConfig = sdk.SpeechConfig.fromSubscription(
@@ -473,7 +474,8 @@ const Interview: React.FC = () => {
   };
 
   const switchPerspective = () => {
-    console.log("Perspective switch");
+    if(!router) return;
+    router.push("/summary");
   };
 
   return (
