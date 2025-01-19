@@ -30,6 +30,7 @@ interface InterviewState {
   questions: Question[];
   currentQuestionIndex: number;
   error: string | null;
+  isInterviewComplete: boolean;
 }
 
 const Interview: React.FC = () => {
@@ -39,9 +40,11 @@ const Interview: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [isBotProcessing, setIsBotProcessing] = useState<boolean>(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const chatBoxRef = useRef<HTMLDivElement | null>(null);
 
   // Speech synthesis configuration
   const speechConfig = sdk.SpeechConfig.fromSubscription(
@@ -57,6 +60,25 @@ const Interview: React.FC = () => {
   // State for AI avatar
   const [mouthOpen, setMouthOpen] = useState(false);
   const [modelSpeaking, setModelSpeaking] = useState(false);
+
+  // URL parameters
+  const searchParams = useSearchParams();
+  const sessionId = searchParams?.get("sessionId");
+  const userQuery = searchParams?.get("query");
+
+  const [mediaState, setMediaState] = useState<MediaState>({
+    isRecording: true,
+    isMicrophoneOn: false,
+    isCameraOn: true,
+  });
+
+  const [interviewState, setInterviewState] = useState<InterviewState>({
+    introMessage: "",
+    questions: [],
+    currentQuestionIndex: 0,
+    error: null,
+    isInterviewComplete: false,
+  });
 
   // Function to speak text
   const speakText = (text: string) => {
@@ -125,27 +147,8 @@ const Interview: React.FC = () => {
     };
   }, []);
 
-  // Rest of your existing state declarations
-  const searchParams = useSearchParams();
-  const sessionId = searchParams?.get("sessionId");
-  const userQuery = searchParams?.get("query");
-
-  const [mediaState, setMediaState] = useState<MediaState>({
-    isRecording: true,
-    isMicrophoneOn: false,
-    isCameraOn: true,
-  });
-
-  const [interviewState, setInterviewState] = useState<InterviewState>({
-    introMessage: "",
-    questions: [],
-    currentQuestionIndex: 0,
-    error: null,
-  });
-
-  // Your existing useEffect for interview data
+  // Initialize interview data
   useEffect(() => {
-    if (!sessionId || !userQuery) return;
     if (!sessionId || !userQuery) return;
 
     fetch("/api/sessions/start-interview", {
@@ -157,7 +160,7 @@ const Interview: React.FC = () => {
         if (!response.ok) throw new Error("Failed to fetch interview data");
         return response.json();
       })
-      .then(data => {
+      .then((data) => {
         if (data.error) {
           setInterviewState((prev) => ({ ...prev, error: data.error }));
         } else {
@@ -185,7 +188,7 @@ const Interview: React.FC = () => {
       });
   }, [sessionId, userQuery]);
 
-  // Your existing media initialization effect
+  // Initialize media devices
   useEffect(() => {
     initializeMedia();
     return () => {
@@ -198,7 +201,7 @@ const Interview: React.FC = () => {
     };
   }, []);
 
-  // Your existing speech recognition effect
+  // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -242,7 +245,7 @@ const Interview: React.FC = () => {
     }
   }, []);
 
-  // Your existing audio analysis effect
+  // Audio analysis for speaking detection
   useEffect(() => {
     if (!mediaState.isMicrophoneOn || !streamRef.current) {
       setIsSpeaking(false);
@@ -280,7 +283,7 @@ const Interview: React.FC = () => {
     };
   }, [mediaState.isMicrophoneOn]);
 
-  // Your existing message memo
+  // Create a computed messages array that includes the live transcript
   const allMessages = React.useMemo(() => {
     const messagesList = [...messages];
 
@@ -293,10 +296,18 @@ const Interview: React.FC = () => {
       });
     }
 
-    return messagesList;
-  }, [messages, transcript, interimTranscript]);
+    if (isBotProcessing) {
+      messagesList.push({
+        id: -2,
+        text: "MockMate is thinking...",
+        sender: "MockMate",
+        isLive: false,
+      });
+    }
 
-  // Your existing functions
+    return messagesList;
+  }, [messages, transcript, interimTranscript, isBotProcessing]);
+
   const initializeMedia = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -367,7 +378,7 @@ const Interview: React.FC = () => {
     setIsListening(false);
   };
 
-  const resetTranscript = () => {
+  const resetTranscript = async () => {
     if (hasPendingResults) {
       console.log("Waiting for interim results to finalize before resetting.");
       return;
@@ -384,24 +395,70 @@ const Interview: React.FC = () => {
             isLive: false,
           },
         ]);
-      }
 
-      if (interviewState.currentQuestionIndex < interviewState.questions.length) {
-        setTimeout(() => {
+        setIsBotProcessing(true);
+
+        try {
+          const response = await fetch("/api/sessions/response", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              userResponse: transcript,
+            }),
+          });
+
+          if (!response.ok) throw new Error("Failed to fetch AI feedback");
+
+          const data = await response.json();
+
           setMessages((prev) => [
             ...prev,
             {
               id: prev.length + 2,
-              text: interviewState.questions[interviewState.currentQuestionIndex].text,
+              text: data.botReply,
               sender: "AI Interviewer",
             },
           ]);
 
+          if (interviewState.currentQuestionIndex < interviewState.questions.length) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: prev.length + 3,
+                text: interviewState.questions[interviewState.currentQuestionIndex].text,
+                sender: "AI Interviewer",
+              },
+            ]);
+
+            setInterviewState((prev) => ({
+              ...prev,
+              currentQuestionIndex: prev.currentQuestionIndex + 1,
+            }));
+          } else {
+            setInterviewState((prev) => ({
+              ...prev,
+              isInterviewComplete: true,
+            }));
+
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: prev.length + 3,
+                text: "Thank you for completing the interview!",
+                sender: "AI Interviewer",
+              },
+            ]);
+          }
+        } catch (error) {
+          console.error("Error fetching AI feedback:", error);
           setInterviewState((prev) => ({
             ...prev,
-            currentQuestionIndex: prev.currentQuestionIndex + 1,
+            error: "Failed to fetch AI feedback",
           }));
-        }, 500);
+        } finally {
+          setIsBotProcessing(false);
+        }
       }
     }
     setTranscript("");
@@ -519,7 +576,10 @@ const Interview: React.FC = () => {
 
               <div className="bg-slate-50 rounded-lg p-4">
                 <h2 className="text-lg font-semibold mb-4">Chat</h2>
-                <div className="h-48 overflow-y-auto space-y-2">
+                <div
+                  ref={chatBoxRef}
+                  className="h-48 overflow-y-auto space-y-2"
+                >
                   {allMessages.map((message: Message) => (
                     <div
                       key={message.id}
