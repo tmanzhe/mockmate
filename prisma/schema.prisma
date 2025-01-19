@@ -28,7 +28,7 @@ model Session {
   questions    Question[]
   responses    Response[]
   user         User       @relation(fields: [userId], references: [id])
-  
+
   @@index([userId])
 }
 
