@@ -1,3 +1,4 @@
+// route.ts
 import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
@@ -9,7 +10,6 @@ export async function POST(request: Request) {
   try {
     const { sessionId, userResponse } = await request.json();
 
-    //we first need to validate the input
     if (!sessionId || !userResponse) {
       return NextResponse.json(
         { error: "Missing sessionId or userResponse." },
@@ -17,7 +17,6 @@ export async function POST(request: Request) {
       );
     }
 
-    //then fetch session from db (IMPORTANT DO NOT REMOVE)
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: { questions: true },
@@ -32,10 +31,9 @@ export async function POST(request: Request) {
 
     const currentQuestionIndex = session.currentQuestionIndex || 0;
 
-    // If the current question index is beyond the available questions, return a completion message
     if (currentQuestionIndex >= session.questions.length) {
       return NextResponse.json(
-        { message: "Interview is complete." },
+        { message: "Interview is complete.", isComplete: true },
         { status: 200 }
       );
     }
@@ -47,7 +45,7 @@ export async function POST(request: Request) {
       data: {
         sessionId,
         questionId: currentQuestion.id,
-        userAnswer: userResponse, // Ensure this field is included
+        userAnswer: userResponse,
       },
     });
 
@@ -58,39 +56,46 @@ export async function POST(request: Request) {
       - Question: "${currentQuestion.text}"
       - User Response: "${userResponse}"
 
-      Provide a thoughtful reply based on the user's input as an interviewee as if you were engaged in the conversation. If the answer was good, praise it. If it was bad, give an example of what could have happened. 
+      Provide a thoughtful reply based on the user's input as an interviewee as if you were engaged in the conversation. If the answer was good, praise it. If it was bad, give an example of what could have happened.
     `;
 
-    // Call OpenAI API to generate the bot's reply
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
-      max_tokens: 500, // Adjust as needed to fit the response within limits
+      max_tokens: 500,
     });
 
     const botReply = aiResponse.choices[0]?.message?.content || "No response.";
 
-    // Save AI response to the database
+    // Save AI response
     await prisma.response.create({
       data: {
         sessionId,
         questionId: currentQuestion.id,
-        mockmateThoughts: botReply, // Save the AI's thoughts (response)
-        userAnswer: userResponse, // Ensure this is included to maintain consistency
+        mockmateThoughts: botReply,
+        userAnswer: userResponse,
       },
     });
 
-    // Update session progress by incrementing the current question index
+    // Get next question (if any)
+    const nextQuestionIndex = currentQuestionIndex + 1;
+    const nextQuestion = nextQuestionIndex < session.questions.length 
+      ? session.questions[nextQuestionIndex].text 
+      : null;
+
+    // Update session progress
     await prisma.session.update({
       where: { id: sessionId },
-      data: { currentQuestionIndex: currentQuestionIndex + 1 },
+      data: { currentQuestionIndex: nextQuestionIndex },
     });
 
     return NextResponse.json({
-      question: currentQuestion.text,
+      currentQuestion: currentQuestion.text,
       userResponse,
       botReply,
+      nextQuestion,
+      isComplete: nextQuestion === null,
     });
   } catch (error) {
     console.error("Error in responses route:", error);

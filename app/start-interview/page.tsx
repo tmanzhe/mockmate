@@ -2,11 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Camera, Mic, MicOff, Video, VideoOff, Pause, Play, RefreshCcw, FileText } from "lucide-react";
+import { Camera, Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
 
 // Types
 interface MediaState {
-  isRecording: boolean;
   isMicrophoneOn: boolean;
   isCameraOn: boolean;
 }
@@ -16,6 +15,7 @@ interface Message {
   text: string;
   sender: string;
   isLive?: boolean;
+  isResponse?: boolean;
 }
 
 interface Question {
@@ -39,7 +39,6 @@ const Interview: React.FC = () => {
 
   // Media state
   const [mediaState, setMediaState] = useState<MediaState>({
-    isRecording: true,
     isMicrophoneOn: false,
     isCameraOn: true
   });
@@ -58,6 +57,7 @@ const Interview: React.FC = () => {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
+  const [isProcessingResponse, setIsProcessingResponse] = useState<boolean>(false);
 
   // Refs
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -66,7 +66,8 @@ const Interview: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
   // Initialize interview data
-  useEffect(() => {
+   // Initialize interview data
+   useEffect(() => {
     if (!sessionId || !userQuery) return;
 
     fetch("/api/sessions/start-interview", {
@@ -89,12 +90,19 @@ const Interview: React.FC = () => {
             error: null
           }));
           
-          // Add intro message to chat
-          setMessages([{
-            id: 0,
-            text: data.introMessage,
-            sender: "AI Interviewer"
-          }]);
+          // Add intro message and first question to chat
+          setMessages([
+            {
+              id: 0,
+              text: data.introMessage,
+              sender: "AI Interviewer"
+            },
+            {
+              id: 1,
+              text: data.questions[0].text,
+              sender: "AI Interviewer"
+            }
+          ]);
         }
       })
       .catch(error => {
@@ -105,7 +113,8 @@ const Interview: React.FC = () => {
       });
   }, [sessionId, userQuery]);
 
-  // Initialize media devices
+
+  // Media and speech recognition initialization (unchanged)
   useEffect(() => {
     initializeMedia();
     return () => {
@@ -118,7 +127,7 @@ const Interview: React.FC = () => {
     };
   }, []);
 
-  // Initialize speech recognition
+  // Speech recognition setup (unchanged)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -162,7 +171,7 @@ const Interview: React.FC = () => {
     }
   }, []);
 
-  // Audio analysis for speaking detection
+  // Audio analysis setup (unchanged)
   useEffect(() => {
     if (!mediaState.isMicrophoneOn || !streamRef.current) {
       setIsSpeaking(false);
@@ -200,22 +209,20 @@ const Interview: React.FC = () => {
     };
   }, [mediaState.isMicrophoneOn]);
 
-  // Create a computed messages array that includes the live transcript
-    const allMessages = React.useMemo(() => {
-      const messagesList = [...messages];
-      
-      // Only add live transcript if there's something to show
-      if (transcript || interimTranscript) {
-        messagesList.push({
-          id: -1, // Special ID for live transcript
-          text: transcript + interimTranscript,
-          sender: "You",
-          isLive: true
-        });
-      }
-      
-      return messagesList;
-    }, [messages, transcript, interimTranscript]);
+  const allMessages = React.useMemo(() => {
+    const messagesList = [...messages];
+    
+    if (transcript || interimTranscript) {
+      messagesList.push({
+        id: -1,
+        text: transcript + interimTranscript,
+        sender: "You",
+        isLive: true
+      });
+    }
+    
+    return messagesList;
+  }, [messages, transcript, interimTranscript]);
 
   const initializeMedia = async () => {
     try {
@@ -233,7 +240,6 @@ const Interview: React.FC = () => {
         videoRef.current.srcObject = stream;
       }
 
-      // Mute microphone by default
       stream.getAudioTracks().forEach(track => {
         track.enabled = false;
       });
@@ -290,57 +296,87 @@ const Interview: React.FC = () => {
     setIsListening(false);
   };
 
+  const processResponse = async (userResponse: string) => {
+    setIsProcessingResponse(true);
+    try {
+      const response = await fetch("/api/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          userResponse
+        })
+      });
+
+      const data = await response.json();
+      
+      // Add bot's response to the current answer
+      if (data.botReply) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: prev.length + 3,
+            text: data.botReply,
+            sender: "AI Interviewer",
+            isResponse: true
+          }
+        ]);
+      }
+
+      // If there's a next question, add it after the bot's response
+      if (data.nextQuestion) {
+        setTimeout(() => {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: prev.length + 4,
+              text: data.nextQuestion,
+              sender: "AI Interviewer"
+            }
+          ]);
+          
+          setInterviewState(prev => ({
+            ...prev,
+            currentQuestionIndex: prev.currentQuestionIndex + 1
+          }));
+        }, 1000); // Small delay to let user read the response
+      }
+    } catch (error) {
+      console.error("Error processing response:", error);
+    } finally {
+      setIsProcessingResponse(false);
+    }
+  };
+
   const resetTranscript = () => {
     if (hasPendingResults) {
       console.log("Waiting for interim results to finalize before resetting.");
       return;
     }
+    
     if (transcript.trim()) {
-      // Check if the last non-live message is the same as the current transcript
-      const lastMessage = messages[messages.length - 1];
-      if (!lastMessage || lastMessage.text !== transcript) {
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          {
-            id: prevMessages.length + 1,
-            text: transcript,
-            sender: "You",
-            isLive: false,
-          },
-        ]);
-      }
+      // Add user's response to messages
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          id: prevMessages.length + 1,
+          text: transcript,
+          sender: "You",
+          isLive: false,
+        },
+      ]);
 
-      // Add next question from AI after user response
-      if (interviewState.currentQuestionIndex < interviewState.questions.length) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: prev.length + 2,
-            text: interviewState.questions[interviewState.currentQuestionIndex].text,
-            sender: "AI Interviewer"
-          }
-        ]);
-        
-        setInterviewState(prev => ({
-          ...prev,
-          currentQuestionIndex: prev.currentQuestionIndex + 1
-        }));
-      }
+      // Process the response and get AI feedback
+      processResponse(transcript);
     }
+    
     setTranscript("");
     setInterimTranscript("");
   };
 
-  const toggleRecording = () => {
-    setMediaState(prev => ({
-      ...prev,
-      isRecording: !prev.isRecording
-    }));
-  };
-
   const switchPerspective = () => {
     console.log("Perspective switch");
-  }
+  };
 
   return (
     <div className="gradient-background min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
@@ -404,43 +440,41 @@ const Interview: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={toggleRecording}
-                  className={`p-3 rounded-full ${
-                    mediaState.isRecording ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'
-                  } text-white`}
-                >
-                  {mediaState.isRecording ? <Pause size={20} /> : <Play size={20} />}
-                </button>
-
-                <button
                   onClick={resetTranscript}
                   className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
                 >
-                    <FileText size={20} />
+                  <FileText size={20} />
                 </button>
               </div>
 
               <div className="bg-slate-50 rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">Chat</h2>
-      <div className="h-48 overflow-y-auto space-y-2">
-        {allMessages.map((message: Message) => (
-          <div 
-            key={message.id} 
-            className={`p-2 bg-white rounded shadow ${
-              message.isLive ? 'border-l-4 border-blue-500' : ''
-            }`}
-          >
-            <div className="text-sm font-medium flex justify-between">
-              <span>{message.sender}</span>
-              {message.isLive && (
-                <span className="text-blue-500 text-xs">Live</span>
-              )}
-            </div>
-            <div>{message.text}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+                <h2 className="text-lg font-semibold mb-4">Chat</h2>
+                <div className="h-48 overflow-y-auto space-y-2">
+                  {allMessages.map((message: Message) => (
+                    <div 
+                      key={message.id} 
+                      className={`p-2 bg-white rounded shadow ${
+                        message.isLive ? 'border-l-4 border-blue-500' : ''
+                      } ${
+                        message.isResponse ? 'border-l-4 border-green-500' : ''
+                      }`}
+                    >
+                      <div className="text-sm font-medium flex justify-between">
+                        <span>{message.sender}</span>
+                        {message.isLive && (
+                          <span className="text-blue-500 text-xs">Live</span>
+                        )}
+                        {message.isResponse && (
+                          <span className="text-green-500 text-xs">Response</span>
+                        )}
+                      </div>
+                      <div>{message.text}</div>{isProcessingResponse && message.sender === "You" && !message.isLive && (
+                        <div className="mt-1 text-xs text-gray-500">Processing response...</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </>
           )}
         </div>
