@@ -545,4 +545,3 @@ const Interview: React.FC = () => {
 };
 
 export default Interview;
-export default Interview;
