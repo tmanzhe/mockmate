@@ -1,30 +1,99 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Landing() {
-  const [query, setQuery] = useState(""); // State to handle user input
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const router = useRouter();
-  const handleSetup = () => {
-    router.push("/setup");
-  }
 
-  const handleSubmit = () => {
+  // Fetch userId on component mount with enhanced error handling
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store", // Prevent caching
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error("Failed to fetch userId:", errorData.error);
+          setUserId(null);
+          return;
+        }
+
+        const data = await res.json();
+        if (data.userId) {
+          setUserId(data.userId);
+          console.log("Fetched userId:", data.userId);
+        } else {
+          console.error("Invalid userId response:", data);
+          setUserId(null);
+        }
+      } catch (error) {
+        console.error("Error fetching userId:", error);
+        setUserId(null);
+      }
+    };
+
+    fetchUserId();
+  }, []);
+
+  const handleSubmit = async () => {
     if (query.trim() === "") {
       alert("Please enter a topic or query.");
       return;
     }
-    router.push("/setup");
-    console.log("User query:", query);
+  
+    if (!userId) {
+      alert("User not authenticated. Please log in.");
+      router.push("/auth/login");
+      return;
+    }
+  
+    setLoading(true);
+  
+    try {
+      console.log("Submitting query:", query);
+  
+      const response = await fetch("/api/queries/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          query: query.trim(),
+        }),
+      });
+  
+      const data = await response.json();
+      console.log("Received data from /api/queries/save:", data);
+  
+      if (response.ok && data.sessionId) {
+        // Include the query parameter in the URL
+        router.push(`/start-interview?sessionId=${data.sessionId}&query=${encodeURIComponent(query.trim())}`);
+      } else {
+        console.error("Error details:", data);
+        alert(data.error || "Failed to save query");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Failed to start interview. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleMouseOver = (e: React.MouseEvent<HTMLButtonElement>) => {
-    (e.target as HTMLButtonElement).style.backgroundColor = "#474973"; // Change color on hover
+    (e.target as HTMLButtonElement).style.backgroundColor = "#474973";
   };
 
   const handleMouseOut = (e: React.MouseEvent<HTMLButtonElement>) => {
-    (e.target as HTMLButtonElement).style.backgroundColor = "#161B33"; // Revert color on mouse out
+    (e.target as HTMLButtonElement).style.backgroundColor = "#161B33";
   };
 
   return (
@@ -34,19 +103,19 @@ export default function Landing() {
     >
       <div
         style={{
-          backgroundColor: "rgba(0, 0, 0, 0.8)", // Slightly darker semi-transparent background
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
           borderRadius: "24px",
           padding: "3rem",
           textAlign: "center",
           width: "90%",
           maxWidth: "700px",
-          boxShadow: "0 8px 16px rgba(0, 0, 0, 0.25)", // Floating shadow effect
-          transform: "translateY(-20px)", // Floating effect
+          boxShadow: "0 8px 16px rgba(0, 0, 0, 0.25)",
+          transform: "translateY(-20px)",
         }}
       >
         <h1
           style={{
-            color: "#F1DAC4", // Matches Almond
+            color: "#F1DAC4",
             fontSize: "2.5rem",
             marginBottom: "1.5rem",
           }}
@@ -55,7 +124,7 @@ export default function Landing() {
         </h1>
         <p
           style={{
-            color: "#A69CAC", // Matches Rose Quartz
+            color: "#A69CAC",
             marginBottom: "2rem",
             fontSize: "1.1rem",
             lineHeight: "1.5",
@@ -82,18 +151,20 @@ export default function Landing() {
           onClick={handleSubmit}
           onMouseOver={handleMouseOver}
           onMouseOut={handleMouseOut}
+          disabled={loading}
           style={{
-            backgroundColor: "#161B33", // Matches Oxford Blue
-            color: "#F1DAC4", // Matches Almond
+            backgroundColor: "#161B33",
+            color: "#F1DAC4",
             padding: "1rem 2rem",
             borderRadius: "12px",
             border: "none",
             fontSize: "1.2rem",
-            cursor: "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
             transition: "all 0.3s ease",
+            opacity: loading ? 0.7 : 1,
           }}
         >
-          Start Now!
+          {loading ? "Processing..." : "Start Now!"}
         </button>
       </div>
     </main>

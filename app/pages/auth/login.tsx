@@ -1,53 +1,36 @@
-"use client";
+import { NextApiRequest, NextApiResponse } from 'next';
+import prisma from '@/prisma/db'; // Adjust the path if needed
+import bcrypt from 'bcrypt';
+import { setCookie } from 'cookies-next'; // Install `cookies-next`
 
-import { useRouter } from 'next/navigation';
-import AuthForm from '../../components/AuthForm';
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const { email, password } = req.body;
 
-const Login = () => {
-  const router = useRouter();
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-  const handleLogin = async (email: string, password: string) => {
-    try {
-      console.log('Attempting login...');
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include' // Important for handling cookies
-      });
-
-      console.log('Login response status:', res.status);
-      
-      if (res.ok) {
-        console.log('Login successful, redirecting...');
-        // Force a complete page reload to ensure middleware picks up the new cookie
-        window.location.href = '/landing';
-      } else {
-        const data = await res.json();
-        console.error('Login failed:', data);
-        alert(data.error || 'Login failed.');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Something went wrong.');
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
     }
-  };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-lg">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
-        </h2>
-        <AuthForm
-          title="Login"
-          onSubmit={handleLogin}
-          linkText="Don't have an account? Register here."
-          linkHref="/auth/register"
-        />
-      </div>
-    </div>
-  );
-};
+    // Generate a token (e.g., JWT or custom token)
+    const token = user.id; // Replace with your token generation logic
 
-export default Login;
+    // Set the token in a cookie
+    setCookie('auth_token', token, {
+      req,
+      res,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    });
+
+    return res.status(200).json({ message: 'Login successful.' });
+  } catch (error) {
+    console.error('Error in /api/auth/login:', error);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+}

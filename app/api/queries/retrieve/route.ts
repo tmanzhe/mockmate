@@ -1,12 +1,10 @@
 import prisma from "@/prisma/db";
 import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const sessionId = searchParams.get("sessionId");
+    const { sessionId } = await request.json();
 
-    // Check if sessionId is null or empty
     if (!sessionId) {
       return NextResponse.json(
         { error: "Session ID is required" },
@@ -32,9 +30,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ session });
   } catch (error) {
-    console.error("Error fetching session:", error);
+    console.error("Error retrieving session:", error);
     return NextResponse.json(
-      { error: "Failed to fetch session" },
+      { error: "Failed to retrieve session" },
       { status: 500 }
     );
   }
