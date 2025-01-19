@@ -2,7 +2,7 @@
 
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import React, { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Camera, Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
 
 // Types
@@ -33,6 +33,7 @@ interface InterviewState {
 }
 
 const Interview: React.FC = () => {
+  const router = useRouter();
   const [transcript, setTranscript] = useState<string>("");
   const [interimTranscript, setInterimTranscript] = useState<string>("");
   const [isListening, setIsListening] = useState<boolean>(false);
@@ -49,7 +50,7 @@ const Interview: React.FC = () => {
     process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
   );
   speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
-  const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+  const synthesizerRef = useRef<sdk.SpeechSynthesizer | null>(null);
 
   // State for tracking last spoken message
   const lastSpokenMessageIdRef = useRef<number>(-1);
@@ -60,9 +61,11 @@ const Interview: React.FC = () => {
 
   // Function to speak text
   const speakText = (text: string) => {
+    if (!synthesizerRef.current) return;
+
     setModelSpeaking(true); // Start animation
 
-    synthesizer.speakTextAsync(
+    synthesizerRef.current.speakTextAsync(
       text,
       (result) => {
         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
@@ -118,12 +121,21 @@ const Interview: React.FC = () => {
 
   // Cleanup effect for synthesizer
   useEffect(() => {
+    const speechConfig = sdk.SpeechConfig.fromSubscription(
+      process.env.NEXT_PUBLIC_AZURE_API_KEY || "",
+      process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
+    );
+    speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
+    synthesizerRef.current = new sdk.SpeechSynthesizer(speechConfig);
+
     return () => {
-      if (synthesizer) {
-        synthesizer.close();
+      if (synthesizerRef.current) {
+        synthesizerRef.current.close();
+        synthesizerRef.current = null; // Clear the reference
       }
     };
   }, []);
+
 
   // Rest of your existing state declarations
   const searchParams = useSearchParams();
@@ -419,6 +431,10 @@ const Interview: React.FC = () => {
     console.log("Perspective switch");
   };
 
+  const handleExit = () => {
+    router.push("/summary");
+  };
+
   return (
     <div className="gradient-background min-h-screen bg-gradient-to-r from-slate-900 to-slate-700 p-6">
       <div className="max-w-4xl mx-auto bg-opacity-50 bg-white rounded-lg shadow-xl overflow-hidden">
@@ -482,7 +498,7 @@ const Interview: React.FC = () => {
               <div className="flex justify-center gap-4 mb-6">
                 <button
                   title="Switch to interviewee perspective"
-                  onClick={switchPerspective}
+                  onClick={handleExit}
                   className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
                 >
                   <RefreshCcw size={20} />
@@ -523,7 +539,12 @@ const Interview: React.FC = () => {
                   {allMessages.map((message: Message) => (
                     <div
                       key={message.id}
-                      className={`p-2 bg-white rounded shadow ${
+                      className={` ${message.sender === "You" ? "bg-[#161B33]" : "bg-[#474973]"}
+                      text-[#F1DAC4]
+                      px-4 py-3
+                      rounded-lg
+                      mb-3
+                      ${message.sender === "You" ? "text-right" : "text-left"}p-2 bg-white rounded shadow ${
                         message.isLive ? "border-l-4 border-blue-500" : ""
                       }`}
                     >
