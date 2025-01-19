@@ -13,7 +13,7 @@ model User {
   email     String    @unique
   password  String
   createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
+  updatedAt DateTime
   Session   Session[]
 }
 
@@ -61,7 +61,7 @@ model Session {
   topic     String
   style     String?
   createdAt DateTime   @default(now())
-  updatedAt DateTime   @default(now())
+  updatedAt DateTime
   Feedback  Feedback[]
   Question  Question[]
   Response  Response[]
