@@ -146,6 +146,7 @@ const Interview: React.FC = () => {
   // Your existing useEffect for interview data
   useEffect(() => {
     if (!sessionId || !userQuery) return;
+    if (!sessionId || !userQuery) return;
 
     fetch("/api/sessions/start-interview", {
       method: "POST",
@@ -156,7 +157,7 @@ const Interview: React.FC = () => {
         if (!response.ok) throw new Error("Failed to fetch interview data");
         return response.json();
       })
-      .then((data) => {
+      .then(data => {
         if (data.error) {
           setInterviewState((prev) => ({ ...prev, error: data.error }));
         } else {
@@ -543,4 +544,5 @@ const Interview: React.FC = () => {
   );
 };
 
+export default Interview;
 export default Interview;
