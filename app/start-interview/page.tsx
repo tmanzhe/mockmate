@@ -28,7 +28,7 @@ interface InterviewState {
   questions: Question[];
   currentQuestionIndex: number;
   error: string | null;
-  isInterviewComplete: boolean; // New state to track if the interview is complete
+  isInterviewComplete: boolean;
 }
 
 const Interview: React.FC = () => {
@@ -49,7 +49,7 @@ const Interview: React.FC = () => {
     questions: [],
     currentQuestionIndex: 0,
     error: null,
-    isInterviewComplete: false, // Initialize as false
+    isInterviewComplete: false,
   });
 
   // Speech recognition state
@@ -59,11 +59,22 @@ const Interview: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
 
+  // Loading state for AI response
+  const [isBotProcessing, setIsBotProcessing] = useState<boolean>(false);
+
   // Refs
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const chatBoxRef = useRef<HTMLDivElement | null>(null); // Ref for chatbox auto-scroll
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+
+  // Auto-scroll to bottom when new messages are added
+  useEffect(() => {
+    if (chatBoxRef.current) {
+      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+    }
+  }, [messages, isBotProcessing]);
 
   // Initialize interview data
   useEffect(() => {
@@ -94,7 +105,7 @@ const Interview: React.FC = () => {
             {
               id: 0,
               text: data.introMessage,
-              sender: "AI Interviewer",
+              sender: "MockMate",
             },
           ]);
         }
@@ -216,8 +227,18 @@ const Interview: React.FC = () => {
       });
     }
 
+    // Add loading indicator if the bot is processing
+    if (isBotProcessing) {
+      messagesList.push({
+        id: -2, // Special ID for loading indicator
+        text: "MockMate is thinking...",
+        sender: "MockMate",
+        isLive: false,
+      });
+    }
+
     return messagesList;
-  }, [messages, transcript, interimTranscript]);
+  }, [messages, transcript, interimTranscript, isBotProcessing]);
 
   const initializeMedia = async () => {
     try {
@@ -290,7 +311,7 @@ const Interview: React.FC = () => {
     setIsListening(false);
   };
 
-  const resetTranscript = () => {
+  const resetTranscript = async () => {
     if (hasPendingResults) {
       console.log("Waiting for interim results to finalize before resetting.");
       return;
@@ -308,39 +329,77 @@ const Interview: React.FC = () => {
             isLive: false,
           },
         ]);
-      }
 
-      // Add next question from AI after user response
-      if (interviewState.currentQuestionIndex < interviewState.questions.length) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: prev.length + 2,
-            text: interviewState.questions[interviewState.currentQuestionIndex].text,
-            sender: "AI Interviewer",
-          },
-        ]);
+        // Set loading state
+        setIsBotProcessing(true);
 
-        setInterviewState((prev) => ({
-          ...prev,
-          currentQuestionIndex: prev.currentQuestionIndex + 1,
-        }));
-      } else {
-        // If all questions are used up, mark the interview as complete
-        setInterviewState((prev) => ({
-          ...prev,
-          isInterviewComplete: true,
-        }));
+        // Call the API to get AI feedback
+        try {
+          const response = await fetch("/api/sessions/response", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              userResponse: transcript,
+            }),
+          });
 
-        // Add a closing thank-you message
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: prev.length + 2,
-            text: "Thank you for completing the interview!",
-            sender: "AI Interviewer",
-          },
-        ]);
+          if (!response.ok) throw new Error("Failed to fetch AI feedback");
+
+          const data = await response.json();
+
+          // Add AI feedback to the chat
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: prev.length + 2,
+              text: data.botReply,
+              sender: "MockMate",
+            },
+          ]);
+
+          // Add next question from AI after user response
+          if (interviewState.currentQuestionIndex < interviewState.questions.length) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: prev.length + 3,
+                text: interviewState.questions[interviewState.currentQuestionIndex].text,
+                sender: "MockMate",
+              },
+            ]);
+
+            setInterviewState((prev) => ({
+              ...prev,
+              currentQuestionIndex: prev.currentQuestionIndex + 1,
+            }));
+          } else {
+            // If all questions are used up, mark the interview as complete
+            setInterviewState((prev) => ({
+              ...prev,
+              isInterviewComplete: true,
+            }));
+
+            // Add a closing thank-you message
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: prev.length + 3,
+                text: "Thank you for completing the interview!",
+                sender: "MockMate",
+              },
+            ]);
+          }
+        } catch (error) {
+          console.error("Error fetching AI feedback:", error);
+          setInterviewState((prev) => ({
+            ...prev,
+            error: "Failed to fetch AI feedback",
+          }));
+        } finally {
+          // Reset loading state
+          setIsBotProcessing(false);
+        }
       }
     }
     setTranscript("");
@@ -365,9 +424,9 @@ const Interview: React.FC = () => {
             <>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="relative aspect-video bg-slate-800 rounded-lg flex items-center justify-center">
-                  <span className="text-slate-400">AI Interviewer</span>
+                  <span className="text-slate-400">MockMate</span>
                   <div className="absolute top-2 right-2 bg-slate-900/80 px-2 py-1 rounded text-xs text-white">
-                    Interviewer
+                     MockMater
                   </div>
                 </div>
 
@@ -424,9 +483,12 @@ const Interview: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-4">
+              <div className="bg-slate-50 rounded-lg p-4 h-[400px] flex flex-col">
                 <h2 className="text-lg font-semibold mb-4">Chat</h2>
-                <div className="h-48 overflow-y-auto space-y-2">
+                <div
+                  ref={chatBoxRef}
+                  className="flex-1 overflow-y-auto space-y-2"
+                >
                   {allMessages.map((message: Message) => (
                     <div
                       key={message.id}

@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       Hello! I'm MockMate, your personalized interview assistant.
       Let's get started with your interview on the topic: "${userQuery}".
       I'll be asking you questions about your experience, knowledge, and problem-solving skills related to this topic.
+      To begin, talk a bit about yourself and your relationship to this industry
     `;
 
     return NextResponse.json({

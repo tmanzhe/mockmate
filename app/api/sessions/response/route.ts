@@ -58,8 +58,8 @@ export async function POST(request: Request) {
       - Question: "${currentQuestion.text}"
       - User Response: "${userResponse}"
 
-      Provide a thoughtful reply based on the user's input as an interviewee as if you were engaged in the conversation. If the answer was good, praise it. If it was bad, give an example of what could have happened.
-    `;
+      Provide a short(under two sentences) buut thoughtful reply based on the user's input as an interviewee as if you were engaged in the conversation. reponse should sound like an actual human. DO NOT ASK ANY QUESTIONS`
+    ;
 
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4-turbo",
