@@ -539,7 +539,7 @@ const Interview: React.FC = () => {
                   {allMessages.map((message: Message) => (
                     <div
                       key={message.id}
-                      className={` ${message.sender === "You" ? "bg-[#161B33]" : "bg-[#474973]"}
+                      className={` ${message.sender === "You" ? "bg-[oxford-blue]" : "bg-[#474973]"}
                       text-[#F1DAC4]
                       px-4 py-3
                       rounded-lg
