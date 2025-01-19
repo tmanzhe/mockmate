@@ -25,65 +25,118 @@ const AuthForm = ({ title, onSubmit, linkText, linkHref, onLinkClick }: AuthForm
   };
 
   return (
-    <div className="mt-8 space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {title === 'Register' && (
-          <div>
-            <input
-              type="text"
-              placeholder="Name"
-              value={name}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            />
-          </div>
-        )}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {title === 'Register' && (
         <div>
           <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+            type="text"
+            placeholder="Name"
+            value={name}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            style={{
+              width: "100%",
+              padding: "0.8rem", // Reduced padding
+              border: "1px solid #A69CAC", // Subtle border
+              borderRadius: "4px", // Minimal border radius
+              marginBottom: "1rem", // Reduced margin
+              fontSize: "1rem", // Smaller font size
+              backgroundColor: "transparent", // Transparent background
+              color: "#F1DAC4", // Text color
+            }}
           />
         </div>
-        <div>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          {title}
-        </button>
-      </form>
-      <p className="text-center">
+      )}
+      <div>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            padding: "0.8rem", // Reduced padding
+            border: "1px solid #A69CAC", // Subtle border
+            borderRadius: "4px", // Minimal border radius
+            marginBottom: "1rem", // Reduced margin
+            fontSize: "1rem", // Smaller font size
+            backgroundColor: "transparent", // Transparent background
+            color: "#F1DAC4", // Text color
+          }}
+        />
+      </div>
+      <div>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            padding: "0.8rem", // Reduced padding
+            border: "1px solid #A69CAC", // Subtle border
+            borderRadius: "4px", // Minimal border radius
+            marginBottom: "1rem", // Reduced margin
+            fontSize: "1rem", // Smaller font size
+            backgroundColor: "transparent", // Transparent background
+            color: "#F1DAC4", // Text color
+          }}
+        />
+      </div>
+      <button
+        type="submit"
+        style={{
+          backgroundColor: "#161B33",
+          color: "#F1DAC4",
+          padding: "0.8rem 1.5rem", // Reduced padding
+          border: "none",
+          borderRadius: "4px", // Minimal border radius
+          fontSize: "1rem", // Smaller font size
+          cursor: "pointer",
+          transition: "all 0.3s ease",
+          width: "100%",
+        }}
+      >
+        {title}
+      </button>
+      <p
+        style={{
+          color: "#A69CAC",
+          marginTop: "1rem", // Reduced margin
+          fontSize: "0.9rem", // Smaller font size
+        }}
+      >
         {onLinkClick ? (
           <button
             onClick={(e) => {
               e.preventDefault();
               onLinkClick();
             }}
-            className="text-blue-600 hover:text-blue-800"
+            style={{
+              color: "#F1DAC4",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
           >
             {linkText}
           </button>
         ) : (
-          <a href={linkHref} className="text-blue-600 hover:text-blue-800">
+          <a
+            href={linkHref}
+            style={{
+              color: "#F1DAC4",
+              textDecoration: "underline",
+            }}
+          >
             {linkText}
           </a>
         )}
       </p>
-    </div>
+    </form>
   );
 };
 

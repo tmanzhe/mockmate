@@ -15,11 +15,11 @@ export default function Page() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
+  
       if (res.ok) {
         const data = await res.json();
         document.cookie = `auth-token=${data.token}; path=/`;
-        router.push('/landing');
+        window.location.href = '/landing'; // Force full page reload
       } else {
         const data = await res.json();
         alert(data.error || 'Login failed.');
@@ -51,14 +51,43 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-lg">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">Welcome to MockMate</h1>
-          <p className="mt-2 text-gray-600">
-            {isLogin ? "Sign in to your account" : "Create your account"}
-          </p>
-        </div>
+    <main
+      className="gradient-background flex justify-center items-center"
+      style={{ 
+        height: "100vh", 
+        width: "100vw", 
+        overflow: "hidden", // Prevent scrolling
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "rgba(0, 0, 0, 0.70)", // More subtle background
+          padding: "2rem", // Comfortable padding
+          textAlign: "center",
+          width: "90%",
+          maxWidth: "400px", // Compact width
+          borderRadius: "12px",
+        }}
+      >
+        <h1
+          style={{
+            color: "#F1DAC4",
+            fontSize: "2rem", // Smaller font size
+            marginBottom: "1rem", // Reduced margin
+          }}
+        >
+          Welcome to MockMate
+        </h1>
+        <p
+          style={{
+            color: "#A69CAC",
+            marginBottom: "1.5rem", // Reduced margin
+            fontSize: "1rem", // Smaller font size
+            lineHeight: "1.5",
+          }}
+        >
+          {isLogin ? "Sign in to your account" : "Create your account"}
+        </p>
 
         <AuthForm
           title={isLogin ? "Login" : "Register"}
@@ -68,6 +97,6 @@ export default function Page() {
           onLinkClick={() => setIsLogin(!isLogin)}
         />
       </div>
-    </div>
+    </main>
   );
 }

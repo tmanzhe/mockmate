@@ -135,7 +135,7 @@ export default function Landing() {
         </p>
         <input
           type="text"
-          placeholder="Enter a topic, e.g., Leadership"
+          placeholder="Enter a topic, e.g., SWE at Google"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{
