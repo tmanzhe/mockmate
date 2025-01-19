@@ -1,11 +1,13 @@
 "use client";
 
+import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Camera, Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
 
 // Types
 interface MediaState {
+  isRecording: boolean;
   isMicrophoneOn: boolean;
   isCameraOn: boolean;
 }
@@ -28,56 +30,122 @@ interface InterviewState {
   questions: Question[];
   currentQuestionIndex: number;
   error: string | null;
-  isInterviewComplete: boolean;
 }
 
 const Interview: React.FC = () => {
-  // URL parameters
-  const searchParams = useSearchParams();
-  const sessionId = searchParams?.get("sessionId");
-  const userQuery = searchParams?.get("query");
-
-  // Media state
-  const [mediaState, setMediaState] = useState<MediaState>({
-    isMicrophoneOn: false,
-    isCameraOn: true,
-  });
-
-  // Interview state
-  const [interviewState, setInterviewState] = useState<InterviewState>({
-    introMessage: "",
-    questions: [],
-    currentQuestionIndex: 0,
-    error: null,
-    isInterviewComplete: false,
-  });
-
-  // Speech recognition state
   const [transcript, setTranscript] = useState<string>("");
   const [interimTranscript, setInterimTranscript] = useState<string>("");
   const [isListening, setIsListening] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
-
-  // Loading state for AI response
-  const [isBotProcessing, setIsBotProcessing] = useState<boolean>(false);
-
-  // Refs
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const chatBoxRef = useRef<HTMLDivElement | null>(null); // Ref for chatbox auto-scroll
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  // Auto-scroll to bottom when new messages are added
+  // Speech synthesis configuration
+  const speechConfig = sdk.SpeechConfig.fromSubscription(
+    process.env.NEXT_PUBLIC_AZURE_API_KEY || "",
+    process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
+  );
+  speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
+  const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+
+  // State for tracking last spoken message
+  const lastSpokenMessageIdRef = useRef<number>(-1);
+
+  // State for AI avatar
+  const [mouthOpen, setMouthOpen] = useState(false);
+  const [modelSpeaking, setModelSpeaking] = useState(false);
+
+  // Function to speak text
+  const speakText = (text: string) => {
+    setModelSpeaking(true); // Start animation
+
+    synthesizer.speakTextAsync(
+      text,
+      (result) => {
+        if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+          console.log("Speech synthesis completed.");
+          setModelSpeaking(false); // Stop animation
+        } else {
+          console.error("Speech synthesis failed:", result.errorDetails);
+          setModelSpeaking(false); // Stop animation
+        }
+      },
+      (error) => {
+        console.error("Error during speech synthesis:", error);
+        setModelSpeaking(false); // Stop animation
+      }
+    );
+  };
+
+  // Effect for mouth animation
   useEffect(() => {
-    if (chatBoxRef.current) {
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+    let intervalId: NodeJS.Timeout;
+
+    if (modelSpeaking) {
+      const animate = () => {
+        const interval = 100 + Math.random() * 150; // Random interval between 100-250ms
+        intervalId = setTimeout(() => {
+          setMouthOpen((prev) => !prev); // Toggle mouth state
+          animate(); // Continue animation
+        }, interval);
+      };
+      animate(); // Start animation
+    } else {
+      setMouthOpen(false); // Reset mouth state when not speaking
     }
-  }, [messages, isBotProcessing]);
 
-  // Initialize interview data
+    return () => {
+      if (intervalId) clearTimeout(intervalId); // Cleanup interval
+    };
+  }, [modelSpeaking]);
+
+  // Effect to handle new AI messages
   useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+
+    if (
+      lastMessage &&
+      lastMessage.sender === "AI Interviewer" &&
+      lastMessage.id !== lastSpokenMessageIdRef.current
+    ) {
+      speakText(lastMessage.text);
+      lastSpokenMessageIdRef.current = lastMessage.id;
+    }
+  }, [messages]);
+
+  // Cleanup effect for synthesizer
+  useEffect(() => {
+    return () => {
+      if (synthesizer) {
+        synthesizer.close();
+      }
+    };
+  }, []);
+
+  // Rest of your existing state declarations
+  const searchParams = useSearchParams();
+  const sessionId = searchParams?.get("sessionId");
+  const userQuery = searchParams?.get("query");
+
+  const [mediaState, setMediaState] = useState<MediaState>({
+    isRecording: true,
+    isMicrophoneOn: false,
+    isCameraOn: true,
+  });
+
+  const [interviewState, setInterviewState] = useState<InterviewState>({
+    introMessage: "",
+    questions: [],
+    currentQuestionIndex: 0,
+    error: null,
+  });
+
+  // Your existing useEffect for interview data
+  useEffect(() => {
+    if (!sessionId || !userQuery) return;
     if (!sessionId || !userQuery) return;
 
     fetch("/api/sessions/start-interview", {
@@ -89,7 +157,7 @@ const Interview: React.FC = () => {
         if (!response.ok) throw new Error("Failed to fetch interview data");
         return response.json();
       })
-      .then((data) => {
+      .then(data => {
         if (data.error) {
           setInterviewState((prev) => ({ ...prev, error: data.error }));
         } else {
@@ -100,12 +168,11 @@ const Interview: React.FC = () => {
             error: null,
           }));
 
-          // Add intro message to chat
           setMessages([
             {
               id: 0,
               text: data.introMessage,
-              sender: "MockMate",
+              sender: "AI Interviewer",
             },
           ]);
         }
@@ -118,7 +185,7 @@ const Interview: React.FC = () => {
       });
   }, [sessionId, userQuery]);
 
-  // Initialize media devices
+  // Your existing media initialization effect
   useEffect(() => {
     initializeMedia();
     return () => {
@@ -131,7 +198,7 @@ const Interview: React.FC = () => {
     };
   }, []);
 
-  // Initialize speech recognition
+  // Your existing speech recognition effect
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -175,7 +242,7 @@ const Interview: React.FC = () => {
     }
   }, []);
 
-  // Audio analysis for speaking detection
+  // Your existing audio analysis effect
   useEffect(() => {
     if (!mediaState.isMicrophoneOn || !streamRef.current) {
       setIsSpeaking(false);
@@ -213,33 +280,23 @@ const Interview: React.FC = () => {
     };
   }, [mediaState.isMicrophoneOn]);
 
-  // Create a computed messages array that includes the live transcript
+  // Your existing message memo
   const allMessages = React.useMemo(() => {
     const messagesList = [...messages];
 
-    // Only add live transcript if there's something to show
     if (transcript || interimTranscript) {
       messagesList.push({
-        id: -1, // Special ID for live transcript
+        id: -1,
         text: transcript + interimTranscript,
         sender: "You",
         isLive: true,
       });
     }
 
-    // Add loading indicator if the bot is processing
-    if (isBotProcessing) {
-      messagesList.push({
-        id: -2, // Special ID for loading indicator
-        text: "MockMate is thinking...",
-        sender: "MockMate",
-        isLive: false,
-      });
-    }
-
     return messagesList;
-  }, [messages, transcript, interimTranscript, isBotProcessing]);
+  }, [messages, transcript, interimTranscript]);
 
+  // Your existing functions
   const initializeMedia = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -256,7 +313,6 @@ const Interview: React.FC = () => {
         videoRef.current.srcObject = stream;
       }
 
-      // Mute microphone by default
       stream.getAudioTracks().forEach((track) => {
         track.enabled = false;
       });
@@ -311,13 +367,12 @@ const Interview: React.FC = () => {
     setIsListening(false);
   };
 
-  const resetTranscript = async () => {
+  const resetTranscript = () => {
     if (hasPendingResults) {
       console.log("Waiting for interim results to finalize before resetting.");
       return;
     }
     if (transcript.trim()) {
-      // Check if the last non-live message is the same as the current transcript
       const lastMessage = messages[messages.length - 1];
       if (!lastMessage || lastMessage.text !== transcript) {
         setMessages((prevMessages) => [
@@ -329,81 +384,35 @@ const Interview: React.FC = () => {
             isLive: false,
           },
         ]);
+      }
 
-        // Set loading state
-        setIsBotProcessing(true);
-
-        // Call the API to get AI feedback
-        try {
-          const response = await fetch("/api/sessions/response", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId,
-              userResponse: transcript,
-            }),
-          });
-
-          if (!response.ok) throw new Error("Failed to fetch AI feedback");
-
-          const data = await response.json();
-
-          // Add AI feedback to the chat
+      if (interviewState.currentQuestionIndex < interviewState.questions.length) {
+        setTimeout(() => {
           setMessages((prev) => [
             ...prev,
             {
               id: prev.length + 2,
-              text: data.botReply,
-              sender: "MockMate",
+              text: interviewState.questions[interviewState.currentQuestionIndex].text,
+              sender: "AI Interviewer",
             },
           ]);
 
-          // Add next question from AI after user response
-          if (interviewState.currentQuestionIndex < interviewState.questions.length) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: prev.length + 3,
-                text: interviewState.questions[interviewState.currentQuestionIndex].text,
-                sender: "MockMate",
-              },
-            ]);
-
-            setInterviewState((prev) => ({
-              ...prev,
-              currentQuestionIndex: prev.currentQuestionIndex + 1,
-            }));
-          } else {
-            // If all questions are used up, mark the interview as complete
-            setInterviewState((prev) => ({
-              ...prev,
-              isInterviewComplete: true,
-            }));
-
-            // Add a closing thank-you message
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: prev.length + 3,
-                text: "Thank you for completing the interview!",
-                sender: "MockMate",
-              },
-            ]);
-          }
-        } catch (error) {
-          console.error("Error fetching AI feedback:", error);
           setInterviewState((prev) => ({
             ...prev,
-            error: "Failed to fetch AI feedback",
+            currentQuestionIndex: prev.currentQuestionIndex + 1,
           }));
-        } finally {
-          // Reset loading state
-          setIsBotProcessing(false);
-        }
+        }, 500);
       }
     }
     setTranscript("");
     setInterimTranscript("");
+  };
+
+  const toggleRecording = () => {
+    setMediaState((prev) => ({
+      ...prev,
+      isRecording: !prev.isRecording,
+    }));
   };
 
   const switchPerspective = () => {
@@ -423,10 +432,31 @@ const Interview: React.FC = () => {
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="relative aspect-video bg-slate-800 rounded-lg flex items-center justify-center">
-                  <span className="text-slate-400">MockMate</span>
+                <div
+                  className={`relative aspect-video bg-slate-800 rounded-lg flex items-center justify-center ${
+                    modelSpeaking ? "ring-4 ring-blue-500 transition-all duration-200" : ""
+                  }`}
+                >
+                  {/* Face Container */}
+                  <div className="w-48 h-48 relative">
+                    {/* Head */}
+                    <div className="absolute inset-0 bg-zinc-200 rounded-full" />
+
+                    {/* Eyes */}
+                    <div className="absolute w-full top-1/3 flex justify-center space-x-8">
+                      <div className="w-4 h-4 bg-slate-800 rounded-full" />
+                      <div className="w-4 h-4 bg-slate-800 rounded-full" />
+                    </div>
+
+                    {/* Mouth */}
+                    <div
+                      className={`absolute left-1/2 bottom-1/4 -translate-x-1/2 w-16 ${
+                        mouthOpen ? "h-6" : "h-1"
+                      } bg-slate-800 rounded-full transition-all duration-150`}
+                    />
+                  </div>
                   <div className="absolute top-2 right-2 bg-slate-900/80 px-2 py-1 rounded text-xs text-white">
-                     MockMater
+                    Interviewer
                   </div>
                 </div>
 
@@ -451,6 +481,7 @@ const Interview: React.FC = () => {
 
               <div className="flex justify-center gap-4 mb-6">
                 <button
+                  title="Switch to interviewee perspective"
                   onClick={switchPerspective}
                   className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
                 >
@@ -458,6 +489,7 @@ const Interview: React.FC = () => {
                 </button>
 
                 <button
+                  title="Mute/unmute"
                   onClick={() => toggleMedia("audio")}
                   className={`p-3 rounded-full ${
                     mediaState.isMicrophoneOn ? "bg-slate-700 hover:bg-slate-600" : "bg-red-600 hover:bg-red-500"
@@ -467,6 +499,7 @@ const Interview: React.FC = () => {
                 </button>
 
                 <button
+                  title="Toggle camera"
                   onClick={() => toggleMedia("video")}
                   className={`p-3 rounded-full ${
                     mediaState.isCameraOn ? "bg-slate-700 hover:bg-slate-600" : "bg-red-600 hover:bg-red-500"
@@ -476,6 +509,7 @@ const Interview: React.FC = () => {
                 </button>
 
                 <button
+                  title="Log answer"
                   onClick={resetTranscript}
                   className="p-3 rounded-full bg-slate-700 hover:bg-slate-600 text-white"
                 >
@@ -483,12 +517,9 @@ const Interview: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-4 h-[400px] flex flex-col">
+              <div className="bg-slate-50 rounded-lg p-4">
                 <h2 className="text-lg font-semibold mb-4">Chat</h2>
-                <div
-                  ref={chatBoxRef}
-                  className="flex-1 overflow-y-auto space-y-2"
-                >
+                <div className="h-48 overflow-y-auto space-y-2">
                   {allMessages.map((message: Message) => (
                     <div
                       key={message.id}
