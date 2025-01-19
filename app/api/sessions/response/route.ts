@@ -1,4 +1,3 @@
-// route.ts
 import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
@@ -6,27 +5,26 @@ import { NextResponse } from "next/server";
 const prisma = new PrismaClient();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
+let isProcessingResponse = false;
+
 export async function POST(request: Request) {
   try {
+    // Extract data from the request body
     const { sessionId, userResponse } = await request.json();
 
-    if (!sessionId || !userResponse) {
-      return NextResponse.json(
-        { error: "Missing sessionId or userResponse." },
-        { status: 400 }
-      );
+    // Validate userResponse
+    if (typeof userResponse !== "string" || userResponse.trim() === "") {
+      return NextResponse.json({ error: "Invalid or empty userResponse" }, { status: 400 });
     }
 
+    // Fetch session from database
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: { questions: true },
     });
 
     if (!session) {
-      return NextResponse.json(
-        { error: "Session not found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
     }
 
     const currentQuestionIndex = session.currentQuestionIndex || 0;
@@ -39,6 +37,10 @@ export async function POST(request: Request) {
     }
 
     const currentQuestion = session.questions[currentQuestionIndex];
+
+    // Prevent multiple submissions (Race condition prevention)
+    if (isProcessingResponse) return NextResponse.json({ error: "Processing already in progress" }, { status: 429 });
+    isProcessingResponse = true;
 
     // Save user's response
     await prisma.response.create({
@@ -66,6 +68,12 @@ export async function POST(request: Request) {
       max_tokens: 500,
     });
 
+    // Check if AI response contains expected data
+    if (!aiResponse || !aiResponse.choices || !aiResponse.choices[0]?.message?.content) {
+      console.error("Invalid AI response format:", aiResponse);
+      return NextResponse.json({ error: "Invalid AI response format" }, { status: 500 });
+    }
+
     const botReply = aiResponse.choices[0]?.message?.content || "No response.";
 
     // Save AI response
@@ -90,7 +98,32 @@ export async function POST(request: Request) {
       data: { currentQuestionIndex: nextQuestionIndex },
     });
 
+    // Handle interview completion
+    if (nextQuestion === null) {
+      await prisma.response.create({
+        data: {
+          sessionId,
+          questionId: currentQuestion.id,
+          mockmateThoughts: "Interview complete! Thank you for participating.",
+          userAnswer: "",
+        },
+      });
+      return NextResponse.json({
+        message: "Interview complete! Thank you for participating.",
+        isComplete: true,
+      });
+    }
+
+    // Generate a new unique ID using Prisma's default UUID mechanism
+    const newMessageId = (await prisma.session.create({
+      data: {
+        userId: session.userId,
+        topic: "new message" // dummy value, adjust as needed
+      }
+    })).id;
+
     return NextResponse.json({
+      messageId: newMessageId,
       currentQuestion: currentQuestion.text,
       userResponse,
       botReply,
@@ -103,5 +136,7 @@ export async function POST(request: Request) {
       { error: "Failed to process response." },
       { status: 500 }
     );
+  } finally {
+    isProcessingResponse = false;
   }
 }

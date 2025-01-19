@@ -15,7 +15,6 @@ interface Message {
   text: string;
   sender: string;
   isLive?: boolean;
-  isResponse?: boolean;
 }
 
 interface Question {
@@ -29,6 +28,7 @@ interface InterviewState {
   questions: Question[];
   currentQuestionIndex: number;
   error: string | null;
+  isInterviewComplete: boolean; // New state to track if the interview is complete
 }
 
 const Interview: React.FC = () => {
@@ -40,7 +40,7 @@ const Interview: React.FC = () => {
   // Media state
   const [mediaState, setMediaState] = useState<MediaState>({
     isMicrophoneOn: false,
-    isCameraOn: true
+    isCameraOn: true,
   });
 
   // Interview state
@@ -48,7 +48,8 @@ const Interview: React.FC = () => {
     introMessage: "",
     questions: [],
     currentQuestionIndex: 0,
-    error: null
+    error: null,
+    isInterviewComplete: false, // Initialize as false
   });
 
   // Speech recognition state
@@ -57,7 +58,6 @@ const Interview: React.FC = () => {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
-  const [isProcessingResponse, setIsProcessingResponse] = useState<boolean>(false);
 
   // Refs
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -66,60 +66,53 @@ const Interview: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
   // Initialize interview data
-   // Initialize interview data
-   useEffect(() => {
+  useEffect(() => {
     if (!sessionId || !userQuery) return;
 
     fetch("/api/sessions/start-interview", {
       method: "POST",
       body: JSON.stringify({ sessionId, userQuery }),
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
     })
-      .then(response => {
+      .then((response) => {
         if (!response.ok) throw new Error("Failed to fetch interview data");
         return response.json();
       })
-      .then(data => {
+      .then((data) => {
         if (data.error) {
-          setInterviewState(prev => ({ ...prev, error: data.error }));
+          setInterviewState((prev) => ({ ...prev, error: data.error }));
         } else {
-          setInterviewState(prev => ({
+          setInterviewState((prev) => ({
             ...prev,
             introMessage: data.introMessage,
             questions: data.questions,
-            error: null
+            error: null,
           }));
-          
-          // Add intro message and first question to chat
+
+          // Add intro message to chat
           setMessages([
             {
               id: 0,
               text: data.introMessage,
-              sender: "AI Interviewer"
+              sender: "AI Interviewer",
             },
-            {
-              id: 1,
-              text: data.questions[0].text,
-              sender: "AI Interviewer"
-            }
           ]);
         }
       })
-      .catch(error => {
-        setInterviewState(prev => ({
+      .catch((error) => {
+        setInterviewState((prev) => ({
           ...prev,
-          error: `Error: ${error.message}`
+          error: `Error: ${error.message}`,
         }));
       });
   }, [sessionId, userQuery]);
 
-
-  // Media and speech recognition initialization (unchanged)
+  // Initialize media devices
   useEffect(() => {
     initializeMedia();
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
       if (recognitionRef.current) {
         stopListening();
@@ -127,14 +120,14 @@ const Interview: React.FC = () => {
     };
   }, []);
 
-  // Speech recognition setup (unchanged)
+  // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognitionRef.current = recognition;
-        
+
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "en-US";
@@ -143,7 +136,7 @@ const Interview: React.FC = () => {
           let interim = "";
           for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
-              setTranscript(prev => prev + event.results[i][0].transcript);
+              setTranscript((prev) => prev + event.results[i][0].transcript);
               setHasPendingResults(false);
             } else {
               interim += event.results[i][0].transcript;
@@ -171,7 +164,7 @@ const Interview: React.FC = () => {
     }
   }, []);
 
-  // Audio analysis setup (unchanged)
+  // Audio analysis for speaking detection
   useEffect(() => {
     if (!mediaState.isMicrophoneOn || !streamRef.current) {
       setIsSpeaking(false);
@@ -182,7 +175,7 @@ const Interview: React.FC = () => {
     const audioContext = new AudioContext();
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
-    
+
     const source = audioContext.createMediaStreamSource(streamRef.current);
     source.connect(analyser);
 
@@ -192,7 +185,7 @@ const Interview: React.FC = () => {
       analyser.getByteFrequencyData(dataArray);
       const avg = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
       setIsSpeaking(avg > 10);
-      
+
       if (mediaState.isMicrophoneOn) {
         animationFrameId = requestAnimationFrame(detectSpeech);
       }
@@ -209,30 +202,32 @@ const Interview: React.FC = () => {
     };
   }, [mediaState.isMicrophoneOn]);
 
+  // Create a computed messages array that includes the live transcript
   const allMessages = React.useMemo(() => {
     const messagesList = [...messages];
-    
+
+    // Only add live transcript if there's something to show
     if (transcript || interimTranscript) {
       messagesList.push({
-        id: -1,
+        id: -1, // Special ID for live transcript
         text: transcript + interimTranscript,
         sender: "You",
-        isLive: true
+        isLive: true,
       });
     }
-    
+
     return messagesList;
   }, [messages, transcript, interimTranscript]);
 
   const initializeMedia = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
+        video: {
           facingMode: "user",
           width: { ideal: 1280 },
-          height: { ideal: 720 }
+          height: { ideal: 720 },
         },
-        audio: true
+        audio: true,
       });
 
       streamRef.current = stream;
@@ -240,14 +235,15 @@ const Interview: React.FC = () => {
         videoRef.current.srcObject = stream;
       }
 
-      stream.getAudioTracks().forEach(track => {
+      // Mute microphone by default
+      stream.getAudioTracks().forEach((track) => {
         track.enabled = false;
       });
     } catch (err) {
       console.error("Failed to access media devices:", err);
-      setInterviewState(prev => ({
+      setInterviewState((prev) => ({
         ...prev,
-        error: "Failed to access camera or microphone"
+        error: "Failed to access camera or microphone",
       }));
     }
   };
@@ -255,21 +251,19 @@ const Interview: React.FC = () => {
   const toggleMedia = (type: "audio" | "video") => {
     if (!streamRef.current) return;
 
-    const tracks = type === 'audio' 
-      ? streamRef.current.getAudioTracks()
-      : streamRef.current.getVideoTracks();
+    const tracks = type === "audio" ? streamRef.current.getAudioTracks() : streamRef.current.getVideoTracks();
 
-    tracks.forEach(track => {
+    tracks.forEach((track) => {
       track.enabled = !track.enabled;
     });
 
-    if (type === 'audio') {
+    if (type === "audio") {
       const newMicState = !mediaState.isMicrophoneOn;
-      setMediaState(prev => ({
+      setMediaState((prev) => ({
         ...prev,
-        isMicrophoneOn: newMicState
+        isMicrophoneOn: newMicState,
       }));
-      
+
       if (newMicState) {
         startListening();
       } else {
@@ -277,9 +271,9 @@ const Interview: React.FC = () => {
         setInterimTranscript("");
       }
     } else {
-      setMediaState(prev => ({
+      setMediaState((prev) => ({
         ...prev,
-        isCameraOn: !prev.isCameraOn
+        isCameraOn: !prev.isCameraOn,
       }));
     }
   };
@@ -296,80 +290,59 @@ const Interview: React.FC = () => {
     setIsListening(false);
   };
 
-  const processResponse = async (userResponse: string) => {
-    setIsProcessingResponse(true);
-    try {
-      const response = await fetch("/api/responses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          userResponse
-        })
-      });
-
-      const data = await response.json();
-      
-      // Add bot's response to the current answer
-      if (data.botReply) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: prev.length + 3,
-            text: data.botReply,
-            sender: "AI Interviewer",
-            isResponse: true
-          }
-        ]);
-      }
-
-      // If there's a next question, add it after the bot's response
-      if (data.nextQuestion) {
-        setTimeout(() => {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: prev.length + 4,
-              text: data.nextQuestion,
-              sender: "AI Interviewer"
-            }
-          ]);
-          
-          setInterviewState(prev => ({
-            ...prev,
-            currentQuestionIndex: prev.currentQuestionIndex + 1
-          }));
-        }, 1000); // Small delay to let user read the response
-      }
-    } catch (error) {
-      console.error("Error processing response:", error);
-    } finally {
-      setIsProcessingResponse(false);
-    }
-  };
-
   const resetTranscript = () => {
     if (hasPendingResults) {
       console.log("Waiting for interim results to finalize before resetting.");
       return;
     }
-    
     if (transcript.trim()) {
-      // Add user's response to messages
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          id: prevMessages.length + 1,
-          text: transcript,
-          sender: "You",
-          isLive: false,
-        },
-      ]);
+      // Check if the last non-live message is the same as the current transcript
+      const lastMessage = messages[messages.length - 1];
+      if (!lastMessage || lastMessage.text !== transcript) {
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            id: prevMessages.length + 1,
+            text: transcript,
+            sender: "You",
+            isLive: false,
+          },
+        ]);
+      }
 
-      // Process the response and get AI feedback
-      processResponse(transcript);
+      // Add next question from AI after user response
+      if (interviewState.currentQuestionIndex < interviewState.questions.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: prev.length + 2,
+            text: interviewState.questions[interviewState.currentQuestionIndex].text,
+            sender: "AI Interviewer",
+          },
+        ]);
+
+        setInterviewState((prev) => ({
+          ...prev,
+          currentQuestionIndex: prev.currentQuestionIndex + 1,
+        }));
+      } else {
+        // If all questions are used up, mark the interview as complete
+        setInterviewState((prev) => ({
+          ...prev,
+          isInterviewComplete: true,
+        }));
+
+        // Add a closing thank-you message
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: prev.length + 2,
+            text: "Thank you for completing the interview!",
+            sender: "AI Interviewer",
+          },
+        ]);
+      }
     }
-    
     setTranscript("");
     setInterimTranscript("");
   };
@@ -398,14 +371,18 @@ const Interview: React.FC = () => {
                   </div>
                 </div>
 
-                <div className={`relative aspect-video bg-slate-800 rounded-lg overflow-hidden ${isSpeaking ? 'ring-4 ring-blue-500' : ''}`}>
+                <div
+                  className={`relative aspect-video bg-slate-800 rounded-lg overflow-hidden ${
+                    isSpeaking ? "ring-4 ring-blue-500" : ""
+                  }`}
+                >
                   <video
                     ref={videoRef}
                     autoPlay
                     muted
                     playsInline
                     className="w-full h-full object-cover"
-                    style={{ transform: 'scaleX(-1)' }}
+                    style={{ transform: "scaleX(-1)" }}
                   />
                   <div className="absolute top-2 right-2 bg-slate-900/80 px-2 py-1 rounded text-xs text-white">
                     You
@@ -422,18 +399,18 @@ const Interview: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => toggleMedia('audio')}
+                  onClick={() => toggleMedia("audio")}
                   className={`p-3 rounded-full ${
-                    mediaState.isMicrophoneOn ? 'bg-slate-700 hover:bg-slate-600' : 'bg-red-600 hover:bg-red-500'
+                    mediaState.isMicrophoneOn ? "bg-slate-700 hover:bg-slate-600" : "bg-red-600 hover:bg-red-500"
                   } text-white`}
                 >
                   {mediaState.isMicrophoneOn ? <Mic size={20} /> : <MicOff size={20} />}
                 </button>
 
                 <button
-                  onClick={() => toggleMedia('video')}
+                  onClick={() => toggleMedia("video")}
                   className={`p-3 rounded-full ${
-                    mediaState.isCameraOn ? 'bg-slate-700 hover:bg-slate-600' : 'bg-red-600 hover:bg-red-500'
+                    mediaState.isCameraOn ? "bg-slate-700 hover:bg-slate-600" : "bg-red-600 hover:bg-red-500"
                   } text-white`}
                 >
                   {mediaState.isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
@@ -451,26 +428,17 @@ const Interview: React.FC = () => {
                 <h2 className="text-lg font-semibold mb-4">Chat</h2>
                 <div className="h-48 overflow-y-auto space-y-2">
                   {allMessages.map((message: Message) => (
-                    <div 
-                      key={message.id} 
+                    <div
+                      key={message.id}
                       className={`p-2 bg-white rounded shadow ${
-                        message.isLive ? 'border-l-4 border-blue-500' : ''
-                      } ${
-                        message.isResponse ? 'border-l-4 border-green-500' : ''
+                        message.isLive ? "border-l-4 border-blue-500" : ""
                       }`}
                     >
                       <div className="text-sm font-medium flex justify-between">
                         <span>{message.sender}</span>
-                        {message.isLive && (
-                          <span className="text-blue-500 text-xs">Live</span>
-                        )}
-                        {message.isResponse && (
-                          <span className="text-green-500 text-xs">Response</span>
-                        )}
+                        {message.isLive && <span className="text-blue-500 text-xs">Live</span>}
                       </div>
-                      <div>{message.text}</div>{isProcessingResponse && message.sender === "You" && !message.isLive && (
-                        <div className="mt-1 text-xs text-gray-500">Processing response...</div>
-                      )}
+                      <div>{message.text}</div>
                     </div>
                   ))}
                 </div>
