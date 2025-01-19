@@ -1,29 +1,28 @@
-"use client";
+"use client"; // Ensure this is client-side rendered
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Question = {
-  text: string;
+  text: string; // Define the type for a question object
 };
 
 const StartInterview = () => {
   const searchParams = useSearchParams();
-  const sessionId = searchParams?.get("sessionId") ?? null;
-  const userQuery = searchParams?.get("query") ?? null; // Add this line to get query parameter
+  const sessionId = searchParams?.get("sessionId") ?? null; // Extract sessionId from URL query parameters
 
-  const [introMessage, setIntroMessage] = useState("");
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [introMessage, setIntroMessage] = useState(""); // State for intro message
+  const [questions, setQuestions] = useState<Question[]>([]); // Explicitly type the state
+  const [error, setError] = useState<string | null>(null); // State for error handling
 
   useEffect(() => {
-    if (!sessionId || !userQuery) return; // Check for both sessionId and userQuery
+    if (!sessionId) return; // Guard clause for undefined sessionId
 
-    console.log("Fetching interview data with:", { sessionId, userQuery });
+    console.log("Fetching interview data with sessionId:", sessionId);
 
     fetch("/api/sessions/start-interview", {
       method: "POST",
-      body: JSON.stringify({ sessionId, userQuery }), // Include userQuery in the request
+      body: JSON.stringify({ sessionId }),
       headers: {
         "Content-Type": "application/json",
       },
@@ -41,25 +40,25 @@ const StartInterview = () => {
         } else {
           console.log("Received data:", data);
           setError(null);
-          setIntroMessage(data.introMessage);
-          setQuestions(data.questions);
+          setIntroMessage(data.introMessage); // Set the introductory message
+          setQuestions(data.questions); // Set the questions
         }
       })
       .catch((error) => {
         setError(`Error fetching interview data: ${error.message}`);
       });
-  }, [sessionId, userQuery]); // Add userQuery to dependency array
+  }, [sessionId]);
 
   return (
     <div>
       <h1>Start Interview</h1>
       {error && <p style={{ color: "red" }}>{error}</p>}
       <div>
-        <h2>{introMessage || "Loading interview data..."}</h2>
+        <h2>{introMessage || "Loading interview data..."}</h2> {/* Display the intro message */}
         <ul>
           {questions.length > 0 ? (
             questions.map((question, index) => (
-              <li key={index}>{question.text}</li>
+              <li key={index}>{question.text}</li> // Display each question
             ))
           ) : (
             <p>No questions available.</p>
