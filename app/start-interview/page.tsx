@@ -53,7 +53,7 @@ const Interview: React.FC = () => {
     process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
   );
   speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
-  const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+  const synthesizerRef = useRef<sdk.SpeechSynthesizer | null>(null);
 
   // State for tracking last spoken message
   const lastSpokenMessageIdRef = useRef<number>(-1);
@@ -83,9 +83,11 @@ const Interview: React.FC = () => {
 
   // Function to speak text
   const speakText = (text: string) => {
+    if (!synthesizerRef.current) return;
+
     setModelSpeaking(true); // Start animation
 
-    synthesizer.speakTextAsync(
+    synthesizerRef.current.speakTextAsync(
       text,
       (result) => {
         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
@@ -127,20 +129,31 @@ const Interview: React.FC = () => {
 
   // Effect to handle new AI messages
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
+    const speechConfig = sdk.SpeechConfig.fromSubscription(
+      process.env.NEXT_PUBLIC_AZURE_API_KEY || "",
+      process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
+    );
+    speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
+    synthesizerRef.current = new sdk.SpeechSynthesizer(speechConfig);
 
-    if (
-      lastMessage &&
-      lastMessage.sender === "MockMate" &&
-      lastMessage.id !== lastSpokenMessageIdRef.current
-    ) {
-      speakText(lastMessage.text);
-      lastSpokenMessageIdRef.current = lastMessage.id;
-    }
-  }, [messages]);
-
-  // Cleanup effect for synthesizer
+    return () => {
+      if (synthesizerRef.current) {
+        synthesizerRef.current.close();
+        synthesizerRef.current = null; // Clear the reference
+      }
+    };
+  }, []);
+  //Clean up syntehsizer
   useEffect(() => {
+    // Initialize synthesizer
+    const speechConfig = sdk.SpeechConfig.fromSubscription(
+      process.env.NEXT_PUBLIC_AZURE_API_KEY || "",
+      process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
+    );
+    speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
+    const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+  
+    // Cleanup function
     return () => {
       if (synthesizer) {
         synthesizer.close();
