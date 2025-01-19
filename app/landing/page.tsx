@@ -75,7 +75,7 @@ export default function Landing() {
   
       if (response.ok && data.sessionId) {
         // Include the query parameter in the URL
-        router.push(`/start-interview?sessionId=${data.sessionId}&query=${encodeURIComponent(query.trim())}`);
+        router.push(`/interview`);
       } else {
         console.error("Error details:", data);
         alert(data.error || "Failed to save query");

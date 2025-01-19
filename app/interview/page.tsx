@@ -26,6 +26,7 @@ interface Message {
   id: number;
   text: string;
   sender: string;
+  isLive?: boolean;
 }
 
 // Add missing TypeScript definitions for the Web Speech API
@@ -46,6 +47,7 @@ const Interview: React.FC = () => {
   const [interimTranscript, setInterimTranscript] = useState<string>("");
   const [isListening, setIsListening] = useState<boolean>(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [hasPendingResults, setHasPendingResults] = useState<boolean>(false);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -64,8 +66,10 @@ const Interview: React.FC = () => {
           for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
               setTranscript((prev) => prev + event.results[i][0].transcript);
+              setHasPendingResults(false);
             } else {
               interim += event.results[i][0].transcript;
+              setHasPendingResults(true);
             }
           }
           setInterimTranscript(interim);
@@ -115,26 +119,53 @@ const Interview: React.FC = () => {
     setIsListening(false);
   };
 
-  const resetTranscript = () => {
-    if (transcript.trim()) {
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          id: prevMessages.length + 1,
-          text: transcript,
-          sender: "You",
-        },
-      ]);
-    }
-    setTranscript("");
-    setInterimTranscript("");
-  };
-
   // Recording variables
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Create a computed messages array that includes the live transcript
+  const allMessages = React.useMemo(() => {
+    const messagesList = [...messages];
+    
+    // Only add live transcript if there's something to show
+    if (transcript || interimTranscript) {
+      messagesList.push({
+        id: -1, // Special ID for live transcript
+        text: transcript + interimTranscript,
+        sender: "You",
+        isLive: true
+      });
+    }
+    
+    return messagesList;
+  }, [messages, transcript, interimTranscript]);
+
+  const resetTranscript = () => {
+    if (hasPendingResults) {
+      console.log("Waiting for interim results to finalize before resetting.");
+      return;
+    }
+    // Check if there's any ongoing interim transcript
+    if (transcript.trim()) {
+      // Check if the last non-live message is the same as the current transcript
+      const lastMessage = messages[messages.length - 1];
+      if (!lastMessage || lastMessage.text !== transcript) {
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            id: prevMessages.length + 1,
+            text: transcript,
+            sender: "You",
+            isLive: false,
+          },
+        ]);
+      }
+    }
+    setTranscript("");
+    setInterimTranscript("");
+  };
 
   useEffect(() => {
     initializeMedia();
@@ -331,32 +362,37 @@ const Interview: React.FC = () => {
             >
               {mediaState.isRecording ? <Pause size={20} /> : <Play size={20} />}
             </button>
+            <button
+              onClick={resetTranscript}
+              className={`p-3 rounded-full ${
+                'bg-yellow-600 hover:bg-yellow-500'
+              } text-white`}
+            >
+               <Play size={20} />
+            </button>
           </div>
 
           <div className="bg-slate-50 rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4">Chat</h2>
-            <div className="h-48 overflow-y-auto space-y-2">
-              {messages.map((message: Message) => (
-                <div key={message.id} className="p-2 bg-white rounded shadow">
-                  <div className="text-sm font-medium">{message.sender}</div>
-                  <div>{message.text}</div>
-                </div>
-              ))}
+      <h2 className="text-lg font-semibold mb-4">Chat</h2>
+      <div className="h-48 overflow-y-auto space-y-2">
+        {allMessages.map((message: Message) => (
+          <div 
+            key={message.id} 
+            className={`p-2 bg-white rounded shadow ${
+              message.isLive ? 'border-l-4 border-blue-500' : ''
+            }`}
+          >
+            <div className="text-sm font-medium flex justify-between">
+              <span>{message.sender}</span>
+              {message.isLive && (
+                <span className="text-blue-500 text-xs">Live</span>
+              )}
             </div>
+            <div>{message.text}</div>
           </div>
-
-          <div className="bg-slate-50 rounded-lg p-4 mt-6">
-            <h2 className="text-lg font-semibold mb-4">Live Transcript</h2>
-            <div className="h-40 overflow-y-auto border rounded p-2 bg-white">
-              {transcript + interimTranscript}
-            </div>
-            <button
-              onClick={resetTranscript}
-              className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-400 text-white rounded"
-            >
-              Save Transcript
-            </button>
-          </div>
+        ))}
+      </div>
+    </div>
         </div>
       </div>
     </div>
