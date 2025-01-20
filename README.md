@@ -49,4 +49,4 @@ At the conclusion of each interview, users can explore "Perspective Mode," a uni
 4. **Session Finalization**:
    - MockMate concludes the interview, saving chatlogs for review.
 
-
+check it out here lol: https://dorahacks.io/buidl/21737
