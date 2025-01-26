@@ -16,8 +16,7 @@ const Login = () => {
         alert('Login failed.');
       }
     } catch (error) {
-      console.error('Login error:', error); // Log the error for debugging
-      alert('Something went wrong.');
+      alert('Something went wrong. ' + error);
     }
   };
 

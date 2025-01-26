@@ -131,7 +131,7 @@ export default function Landing() {
             lineHeight: "1.5",
           }}
         >
-          Get tailored questions and feedback from the interviewers perspective
+          Get tailored questions and feedback from the interviewer&apos;s perspective
           to sharpen your skills and ace your next interview.
         </p>
         <input

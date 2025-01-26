@@ -7,8 +7,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
 export async function POST(request: Request) {
   try {
-    // Destructure the request body, excluding `previousResponses`
-    const { sessionId, currentQuestionId, userResponse } = await request.json();
+    // previousResponses was a variable to be assigned, but has no current use so it is being moved aside
+    const { sessionId, currentQuestionId, userResponse = [] } = await request.json();
 
     if (!sessionId) {
       return NextResponse.json({ error: "Missing sessionId." }, { status: 400 });

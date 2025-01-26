@@ -17,7 +17,6 @@ export async function POST(request: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create the user without assigning it to a variable
     await prisma.user.create({
       data: { email, name, password: hashedPassword },
     });
