@@ -7,7 +7,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
 export async function POST(request: Request) {
   try {
-    const { sessionId, currentQuestionId, userResponse, previousResponses = [] } = await request.json();
+    // Destructure the request body, excluding `previousResponses`
+    const { sessionId, currentQuestionId, userResponse } = await request.json();
 
     if (!sessionId) {
       return NextResponse.json({ error: "Missing sessionId." }, { status: 400 });
@@ -101,7 +102,6 @@ export async function POST(request: Request) {
             sessionId,
             text: q,
             type: determineQuestionType(q),
-            // No contextBased field as it was removed
           },
         })
       )
