@@ -16,6 +16,7 @@ const Register = () => {
         alert('Registration failed.');
       }
     } catch (error) {
+      console.error('Registration error:', error); // Log the error for debugging
       alert('Something went wrong.');
     }
   };

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+
 export default function Landing() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,18 +48,18 @@ export default function Landing() {
       alert("Please enter a topic or query.");
       return;
     }
-
+  
     if (!userId) {
       alert("User not authenticated. Please log in.");
       router.push("/auth/login");
       return;
     }
-
+  
     setLoading(true);
-
+  
     try {
       console.log("Submitting query:", query);
-
+  
       const response = await fetch("/api/queries/save", {
         method: "POST",
         headers: {
@@ -69,10 +70,10 @@ export default function Landing() {
           query: query.trim(),
         }),
       });
-
+  
       const data = await response.json();
       console.log("Received data from /api/queries/save:", data);
-
+  
       if (response.ok && data.sessionId) {
         // Include the query parameter in the URL
         router.push(`/start-interview?sessionId=${data.sessionId}&query=${encodeURIComponent(query.trim())}`);
@@ -130,7 +131,7 @@ export default function Landing() {
             lineHeight: "1.5",
           }}
         >
-          Get tailored questions and feedback from the interviewer&apos;s perspective
+          Get tailored questions and feedback from the interviewer's perspective
           to sharpen your skills and ace your next interview.
         </p>
         <input
