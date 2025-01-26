@@ -1,9 +1,10 @@
 "use client";
 
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Camera, Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
+import {Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
+// import { Inter } from "next/font/google";
 
 // Types
 interface MediaState {
@@ -34,6 +35,14 @@ interface InterviewState {
 }
 
 const Interview: React.FC = () => {
+  return(
+    <Suspense fallback = {<div>Loading...</div>}>
+      <InterviewComponent />
+    </Suspense>
+  )
+};
+
+const InterviewComponent: React.FC = () => {
   const [transcript, setTranscript] = useState<string>("");
   const [interimTranscript, setInterimTranscript] = useState<string>("");
   const [isListening, setIsListening] = useState<boolean>(false);
@@ -146,7 +155,7 @@ const Interview: React.FC = () => {
         synthesizer.close();
       }
     };
-  }, []);
+  }, [messages]);
 
   // Initialize interview data
   useEffect(() => {
@@ -209,11 +218,11 @@ const Interview: React.FC = () => {
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognitionRef.current = recognition;
-
+  
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "en-US";
-
+  
         recognition.onresult = (event: SpeechRecognitionEvent) => {
           let interim = "";
           for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -227,12 +236,12 @@ const Interview: React.FC = () => {
           }
           setInterimTranscript(interim);
         };
-
+  
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error("Speech recognition error:", event.error);
           setIsListening(false);
         };
-
+  
         recognition.onend = () => {
           if (isListening && mediaState.isMicrophoneOn && recognitionRef.current) {
             try {
@@ -244,7 +253,13 @@ const Interview: React.FC = () => {
         };
       }
     }
-  }, []);
+  
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [isListening, mediaState.isMicrophoneOn]); // Add dependencies
 
   // Audio analysis for speaking detection
   useEffect(() => {
@@ -466,12 +481,12 @@ const Interview: React.FC = () => {
     setInterimTranscript("");
   };
 
-  const toggleRecording = () => {
-    setMediaState((prev) => ({
-      ...prev,
-      isRecording: !prev.isRecording,
-    }));
-  };
+  // const toggleRecording = () => {
+  //   setMediaState((prev) => ({
+  //     ...prev,
+  //     isRecording: !prev.isRecording,
+  //   }));
+  // };
 
   const switchPerspective = () => {
     if(!router) return;
@@ -604,6 +619,5 @@ const Interview: React.FC = () => {
       </div>
     </div>
   );
-};
-
+}
 export default Interview;
