@@ -1,7 +1,7 @@
 "use client";
 
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {Mic, MicOff, Video, VideoOff, RefreshCcw, FileText } from "lucide-react";
 // import { Inter } from "next/font/google";
@@ -62,7 +62,9 @@ const InterviewComponent: React.FC = () => {
     process.env.NEXT_PUBLIC_AZURE_REGION || "eastus"
   );
   speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
-  const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+  const synthesizer = useMemo(() => {
+    return new sdk.SpeechSynthesizer(speechConfig);
+  }, [speechConfig]);
 
   // State for tracking last spoken message
   const lastSpokenMessageIdRef = useRef<number>(-1);
@@ -91,26 +93,23 @@ const InterviewComponent: React.FC = () => {
   });
 
   // Function to speak text
-  const speakText = (text: string) => {
-    setModelSpeaking(true); // Start animation
-
+  const speakText = useCallback((text: string) => {
+    setModelSpeaking(true);
+    
     synthesizer.speakTextAsync(
       text,
       (result) => {
-        if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-          console.log("Speech synthesis completed.");
-          setModelSpeaking(false); // Stop animation
-        } else {
-          console.error("Speech synthesis failed:", result.errorDetails);
-          setModelSpeaking(false); // Stop animation
+        setModelSpeaking(false);
+        if (result.reason !== sdk.ResultReason.SynthesizingAudioCompleted) {
+          console.error("Synthesis failed:", result.errorDetails);
         }
       },
       (error) => {
-        console.error("Error during speech synthesis:", error);
-        setModelSpeaking(false); // Stop animation
+        setModelSpeaking(false);
+        console.error("Synthesis error:", error);
       }
     );
-  };
+  }, [synthesizer]); 
 
   // Effect for mouth animation
   useEffect(() => {
@@ -146,7 +145,7 @@ const InterviewComponent: React.FC = () => {
       speakText(lastMessage.text);
       lastSpokenMessageIdRef.current = lastMessage.id;
     }
-  }, [messages]);
+  }, [messages, speakText]);
 
   // Cleanup effect for synthesizer
   useEffect(() => {
@@ -155,7 +154,7 @@ const InterviewComponent: React.FC = () => {
         synthesizer.close();
       }
     };
-  }, [messages]);
+  }, [messages, synthesizer]);
 
   // Initialize interview data
   useEffect(() => {
