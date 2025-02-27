@@ -13,3 +13,5 @@ At the conclusion of each interview, users can explore "Perspective Mode," a uni
 4. **Authentication**: Secured with NextAuth.js for user management.
 
 check it out here lol: https://dorahacks.io/buidl/21737
+
+VIDEO DEMO: https://www.youtube.com/watch?v=F-JwSP1WrHE
